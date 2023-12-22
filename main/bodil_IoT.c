@@ -6,61 +6,51 @@
 #include "esp_log.h"
 #include "esp_event.h"
 #include "nvs_flash.h"
-#include "lwip/err.h"
-#include "lwip/sys.h"
-#include "lwip/ip4_addr.h"
+#include "data.h"
+#include "client.h"
+#include "wifi_connection.h"
+// #include "esp_sleep.h"
 
-const char *ssid = "ssid"; //change it before flashing
-const char *pass = "pass"; //change it before flashing
-int retry_conn_num = 0;
+extern int retry_conn_num;
+// Initializing the customer info. It should be updated in the main by bluetooth settings (ssid, pass) and by the api response (api_key).
+static struct BodilCustomer customer_info = {.name= "bodil_dev", .deviceid = 1, .ssid="Bodil_Fiber", .pass="99741075", .api_key="api_key"}; //change it before flashing
 
-static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id,void *event_data){
-    switch (event_id){
-        case WIFI_EVENT_STA_START:
-            printf("Starting the WiFi connection, wait...\n");
-            break;
-        case WIFI_EVENT_STA_CONNECTED:
-            printf("Connected!\n");
-            retry_conn_num = 0;
-            break;
-        case WIFI_EVENT_STA_DISCONNECTED:
-            printf("WiFi connection lost\n");
-            if(retry_conn_num<5){esp_wifi_connect();retry_conn_num++;printf("Retrying to connect... (%d)\n", retry_conn_num); vTaskDelay(2000 / portTICK_PERIOD_MS);}
-            break;
-        case IP_EVENT_STA_GOT_IP:
-            ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-            uint32_t ip_addr = ip4_addr_get_u32(&event->ip_info.ip);
-            char ip_str[16]; // Buffer to store IP address string (xxx.xxx.xxx.xxx\0)
-            ip4addr_ntoa_r((const ip4_addr_t *)&ip_addr, ip_str, sizeof(ip_str));
-            printf("IP address of the connected device: %s\n", ip_str);
-            break;
+void periodic_heatpump_state_check_task(void *pvParameter) {
+    while (1) {
+        // Get the wifi status
+        int wifi_status = wifi_connection_get_status();
+        // Check if connected before making the HTTP request
+        if (wifi_status == ESP_OK) {
+            get_heatpump_set_state();
+        }
+        else{
+            printf("Not connected to WiFi. Waiting 2 seconds to execute a new request...\n");
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+        }
+        // Wait for 15 seconds before making the next request
+        vTaskDelay(30000 / portTICK_PERIOD_MS);
     }
 }
 
-void wifi_connection(){
-    esp_netif_init(); // initiates network interface
-    esp_event_loop_create_default(); // dispatch events loop callback
-    esp_netif_create_default_wifi_sta(); // create default wifi station
-    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&wifi_init_config); // initialize wifi
-    esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL); // register event handler for events
-    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL); // register event handler for network
-    wifi_config_t wifi_configuration = {
-        .sta= {
-            .ssid = "",
-            .password= "", 
-        },
-    };
-    strcpy((char*)wifi_configuration.sta.ssid, ssid);
-    strcpy((char*)wifi_configuration.sta.password, pass);
-    esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_configuration);
-    esp_wifi_start(); // start wifi
-    esp_wifi_set_mode(WIFI_MODE_STA); // set wifi mode to connect to an existing Wi-Fi network as a client (station)
-    esp_wifi_connect();
-    printf( "wifi_init_softap finished. SSID:%s  password:%s \n",ssid,pass);
-}
 
 void app_main(void){
-    nvs_flash_init(); // store the wifi configs (non volatile) [ssid, password]
-    wifi_connection();
+    nvs_flash_init(); // store the customer configs (non volatile) [struct config]
+    wifi_connection_init();
+    wifi_connection_start(customer_info.ssid, customer_info.pass);
+    
+    //TODO: create routine to update wifi credentials through bluetooth (update ssid and pass)
+
+    /* Misterious and suspectfull bluettoth implementation here*/
+
+    // Create a periodic task that calls get_heatpump_set_state every 15 seconds
+    xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, NULL /*arguments*/, 3, NULL /*handlers*/); 
+    
+    while (1) {
+        // just do whatever in the main thread loop for now
+        printf("1 minute passed in the main thread \n");
+        vTaskDelay(60000 / portTICK_PERIOD_MS);
+
+        //energy saving mode to use in the future
+        //esp_deep_sleep(5 * 60 * 1000000);  // Sleep for 5 minutes in microseconds
+    }
 }
