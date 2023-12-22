@@ -22,5 +22,9 @@
 		"**/.vscode/**"
 	],
 	"idf.adapterTargetName": "esp32",
-	"C_Cpp.errorSquiggles": "disabled"
+	"C_Cpp.errorSquiggles": "disabled",
+	"files.associations": {
+		"data.h": "c",
+		"client.h": "c"
+	}
 }
