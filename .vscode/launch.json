@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": true,
-      "cwd": "c:/Users/DELL/Desktop/Bodil/Device/main",
-      "program": "c:/Users/DELL/Desktop/Bodil/Device/main/build/Debug/outDebug",
+      "cwd": "c:/Users/DELL/Desktop/Bodil/Device",
+      "program": "c:/Users/DELL/Desktop/Bodil/Device/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
