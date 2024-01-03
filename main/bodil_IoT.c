@@ -9,11 +9,14 @@
 #include "data.h"
 #include "client.h"
 #include "wifi_connection.h"
+#include "bluetooth.h"
 // #include "esp_sleep.h"
+
+#define BLE_DEVICE_NAME "BodilBox"
 
 extern int retry_conn_num;
 // Initializing the customer info. It should be updated in the main by bluetooth settings (ssid, pass) and by the api response (api_key).
-static struct BodilCustomer customer_info = {.name= "bodil_dev", .deviceid = 1, .ssid="Bodil_Fiber", .pass="99741075", .api_key="api_key"}; //change it before flashing
+struct BodilCustomer customer_info = {.name= "bodil_dev", .deviceid = 1, .ssid="Bodil_Fiber", .pass="99741075", .api_key="api_key"}; //change it before flashing
 
 void periodic_heatpump_state_check_task(void *pvParameter) {
     while (1) {
@@ -34,13 +37,20 @@ void periodic_heatpump_state_check_task(void *pvParameter) {
 
 
 void app_main(void){
-    nvs_flash_init(); // store the customer configs (non volatile) [struct config]
+    esp_err_t ret;
+
+    ret = nvs_flash_init(); // store the customer configs (non volatile) [struct config]
+
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    initialize_bluetooth_service(BLE_DEVICE_NAME);
+
     wifi_connection_init();
     wifi_connection_start(customer_info.ssid, customer_info.pass);
-    
-    //TODO: create routine to update wifi credentials through bluetooth (update ssid and pass)
-
-    /* Misterious and suspectfull bluettoth implementation here*/
 
     // Create a periodic task that calls get_heatpump_set_state every 15 seconds
     xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, NULL /*arguments*/, 3, NULL /*handlers*/); 
