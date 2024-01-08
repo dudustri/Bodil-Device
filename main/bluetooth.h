@@ -23,6 +23,6 @@ int set_customer_info(const char *key, const char *value);
 void ble_task(void *param);
 void ble_advertisement(void);
 void ble_start_on_sync(void);
-void initialize_bluetooth_service(char *BLE_device_name);
+int initialize_bluetooth_service(char *BLE_device_name);
 
 #endif
