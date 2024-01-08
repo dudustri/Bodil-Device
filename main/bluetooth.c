@@ -4,35 +4,44 @@
 #define GATT_DEVICE_INFO_UUID                   0x0B0D
 #define GATT_READ_SERVICE_UUID                  0x00BB
 #define GATT_WRITE_SERVICE_UUID                 0x01BB
+#define INFO_BUFFER_SIZE                        180
+#define MANUFACTURER_DATA_SIZE                  17
 
-char *cached_device_info_buffer;
+char *cached_device_info_buffer = NULL;
 uint8_t ble_address_type;
+
+// Mutex for synchronizing access to the cached_device_info_buffer
+SemaphoreHandle_t buffer_mutex;
 
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
 
 void update_buffer(void){
-        snprintf(cached_device_info_buffer, 512, "Device Information:\n"
-                                      "Name: %s\n"
-                                      "DeviceID: %d\n"
-                                      "SSID: %s\n"
-                                      "Password: %s\n"
-                                      "API Key: %s\n",
-             customer_info.name, customer_info.deviceid, customer_info.ssid, customer_info.pass, customer_info.api_key);
+    if (customer_info.name == NULL || customer_info.ssid == NULL || customer_info.pass == NULL || customer_info.api_key == NULL || cached_device_info_buffer == NULL) {
+        return;
+    }
+    snprintf(cached_device_info_buffer, INFO_BUFFER_SIZE, "Device Information:\n Name: %s\n DeviceID: %d\n SSID: %s\n Password: %s\n API Key: %s\n",
+        customer_info.name, customer_info.deviceid, customer_info.ssid, customer_info.pass, customer_info.api_key);
 }
 
 void initialize_buffer_cache(void){
 
     cached_device_info_buffer = NULL;
-    cached_device_info_buffer = malloc(512);
+    cached_device_info_buffer = (char *)calloc(INFO_BUFFER_SIZE, sizeof(char));
 
     if (cached_device_info_buffer == NULL) {
-        fprintf(stderr, "Customer info's cached buffer memory allocation failed\n");
+        ESP_LOGE("Customer Info Cache", "Customer info's cached buffer memory allocation failed...\n");
         return;
     }
 
-    memset(cached_device_info_buffer, 0, 512);
     update_buffer();
+
+    buffer_mutex = xSemaphoreCreateMutex();
+        if (buffer_mutex == NULL) {
+        ESP_LOGE("Mutex", "Mutex creation failed...\n");
+        free(cached_device_info_buffer);
+        cached_device_info_buffer = NULL;
+    }
 }
 
 /* ----------------------------------------------------------------
@@ -60,16 +69,16 @@ int set_customer_info(const char *key, const char *value){
     switch(config_key) {
 
         case PASSWORD:
-            strncpy(customer_info.pass, value, sizeof(customer_info.pass) - 1);
-            customer_info.pass[sizeof(customer_info.pass) - 1] = '\0';
+            // strncpy(customer_info.pass, value, sizeof(customer_info.pass) - 1);
+            // customer_info.pass[sizeof(customer_info.pass) - 1] = '\0';
             return 1;
         case NAME:
-            strncpy(customer_info.name, value, sizeof(customer_info.name) - 1);
-            customer_info.name[sizeof(customer_info.name) - 1] = '\0';
+            // strncpy(customer_info.name, value, sizeof(customer_info.name) - 1);
+            // customer_info.name[sizeof(customer_info.name) - 1] = '\0';
             return 1;
         case SSID:
-            strncpy(customer_info.ssid, value, sizeof(customer_info.ssid) - 1);
-            customer_info.ssid[sizeof(customer_info.ssid) - 1] = '\0';
+            // strncpy(customer_info.ssid, value, sizeof(customer_info.ssid) - 1);
+            // customer_info.ssid[sizeof(customer_info.ssid) - 1] = '\0';
             return 1;
         default: //the key does not match with configuration
             return 0;
@@ -81,44 +90,100 @@ int set_customer_info(const char *key, const char *value){
 
 // Write data to ESP32 defined as server
 static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
-    char * data = (char *)ctxt->om->om_data;
 
-    // Find the colon in the received data
-    char *pair = strtok(data, ",");
-    while (pair != NULL) {
-        // Split key and value
-        char *key = strtok(pair, ":");
-        char *value = strtok(NULL, ":");
+    char *data = NULL;
 
-        if (key != NULL && value != NULL) {
-            // Trim leading and trailing whitespaces from key and value
-            while (*key == ' ') key++;
-            char *end = key + strlen(key) - 1;
-            while (end > key && *end == ' ') end--;
-            *(end + 1) = '\0';
+    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
+        
+        //char * data = (char *)ctxt->om->om_data;
 
-            while (*value == ' ') value++;
-            end = value + strlen(value) - 1;
-            while (end > value && *end == ' ') end--;
-            *(end + 1) = '\0';
+        data = (char *)malloc(ctxt->om->om_len + 1);  // +1 for null terminator
 
-            // Set the values in customer_info
-            if (set_customer_info(key, value)) {
-                printf("New %s set: %s\n", key, value);
-            } else {
-                printf("Unknown key: %s\n", key);
-            }
+        if (data == NULL) {
+            ESP_LOGE("WRITE GATT SERVICE", "data buffer memory allocation failed...\n");
+            free(data);
+            return 1;
         }
 
-        // Get the next key-value pair
-        pair = strtok(NULL, ",");
+        // Copy data from om_data to the dynamically allocated buffer
+        memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
+
+        // Null-terminate the string
+        data[ctxt->om->om_len] = '\0';  
+
+        //debug
+
+        ESP_LOGI("WRITE GATT SERVICE", "Received data: %s / %s", ctxt->om->om_data, data);
+        // ESP_LOGI("WRITE GATT SERVICE", "Cached buffer content: %s", cached_device_info_buffer);
+
+        // ESP_LOGI("WRITE GATT SERVICE", "Address of data: %p", (void *)data); //1073534643
+        // ESP_LOGI("WRITE GATT SERVICE", "Address of cached_device_info_buffer: %p", (void *)cached_device_info_buffer); //1073597892
+
+        // size_t size_between_addresses = (size_t)(cached_device_info_buffer - data);
+
+        // ESP_LOGI("WRITE GATT SERVICE", "Size between addresses: %zu bytes", size_between_addresses);
+
+
+        //TODO: Implement a queue to send all the tokenized items from the data received! Bug when using strtok twice for different split criteria ...
+
+        // Find the colon in the received data
+        char *pair = strtok(data, ",");
+
+        while (pair != NULL) {
+            ESP_LOGI("WRITE GATT SERVICE","pair result: %s\n", pair);
+            // Split key and value
+            char *key = strtok(pair, ":");
+            char *value = strtok(NULL, ":");
+
+            if (key != NULL && value != NULL) {
+
+                // Trim leading and trailing whitespaces from key and value
+                while (*key == ' ') key++;
+                char *end = key + strlen(key) - 1;
+                while (end > key && *end == ' ') end--;
+                *(end + 1) = '\0';
+
+                while (*value == ' ') value++;
+                end = value + strlen(value) - 1;
+                while (end > value && *end == ' ') end--;
+                *(end + 1) = '\0';
+
+                // set the values in customer_info and print the new values
+                if (set_customer_info(key, value)) {
+                    ESP_LOGI("WRITE GATT SERVICE", "New %s set: %s\n", key, value);
+                } else {
+                    ESP_LOGI("WRITE GATT SERVICE","Unknown key: %s\n", key);
+                }
+            }
+
+            // Get the next key-value pair
+            pair = strtok(NULL, ",");
+            ESP_LOGI("WRITE GATT SERVICE","Next pair result: %s\n", pair);
+        }
+        free(data);
+        update_buffer();
+        xSemaphoreGive(buffer_mutex);
     }
     return 0;
 }
 
 // Read data from ESP32 defined as server
 static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
-    os_mbuf_append(ctxt->om, cached_device_info_buffer, strlen(cached_device_info_buffer));
+    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
+        ESP_LOGI("READ GATT SERVICE", "Read requested by a bluetooth connection!");
+
+        os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
+
+        ESP_LOGI("READ GATT SERVICE", "%d bytes.\n", strlen(cached_device_info_buffer));
+        
+        // ESP_LOGI("READ GATT SERVICE", "%d bytes, context buffer: %s\n", strlen(cached_device_info_buffer), cached_device_info_buffer);
+        // ESP_LOGI("READ GATT SERVICE", "%d bytes, context buffer: %.*s\n", ctxt->om->om_len, ctxt->om->om_len, (char *)(ctxt->om->om_data));
+
+        xSemaphoreGive(buffer_mutex);
+
+        //for debugging
+        // esp_timer_dump(stdout);
+    }
     return 0;
 }
 
@@ -157,6 +222,7 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg){
     case BLE_GAP_EVENT_DISCONNECT:
         free(cached_device_info_buffer);
         ESP_LOGI("GAP", "BLE GAP EVENT DISCONNECTED");
+        ble_advertisement();
         break;
     case BLE_GAP_EVENT_ADV_COMPLETE:
         ESP_LOGI("GAP", "BLE GAP EVENT");
@@ -179,6 +245,17 @@ void ble_advertisement(void){
     fields.name = (uint8_t *)device_name;
     fields.name_len = strlen(device_name);
     fields.name_is_complete = 1;
+
+    // Set the device type, flags
+    fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
+
+    //TODO: manufacturer data...
+    // Set the manufacturer data
+    // const char *manufacturer_name = "Bodil Energy ApS";
+
+    // fields.mfg_data =  manufacturer_name;
+    // fields.mfg_data_len = MANUFACTURER_DATA_SIZE;
+
     rc = ble_gap_adv_set_fields(&fields);
     if (rc != 0 ){
         ESP_LOGE("BLE Advertisement", "error setting advertisement data; rc=%d\n", rc);
@@ -206,10 +283,12 @@ void ble_advertisement(void){
         ESP_LOGE("BLE Advertisement", "error enabling advertisement; rc=%d\n", rc);
         return;
     }
+    
 }
 
 void ble_start_on_sync(void){
     ble_hs_id_infer_auto(0, &ble_address_type); // determines the best address type automatically
+    ESP_LOGI("BLE ADDRESS TYPE", "%d /n", ble_address_type);
     ble_advertisement();
 }
 
@@ -219,8 +298,7 @@ void ble_task(void *param){
     nimble_port_run(); // returns only when nimble_port_stop() is executed
 }
 
-void initialize_bluetooth_service(char *BLE_device_name){
-    initialize_buffer_cache();
+int initialize_bluetooth_service(char *BLE_device_name){
     nimble_port_init(); 
     ble_svc_gap_device_name_set(BLE_device_name); // set the service name to be read inside the advertisement function 
     ble_svc_gap_init();                           // initialize NimBLE configuration - gap service
@@ -229,4 +307,6 @@ void initialize_bluetooth_service(char *BLE_device_name){
     ble_gatts_add_svcs(gatt_svcs);                // ~~ queues gatt services.
     ble_hs_cfg.sync_cb = ble_start_on_sync;       // ble application initialization
     nimble_port_freertos_init(ble_task);          // initialize the ble task as a process in a separated thread in the OS
+
+    return 0;
 }
