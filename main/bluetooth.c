@@ -1,5 +1,4 @@
 #include "bluetooth.h"
-#include "data.h"
 
 #define GATT_DEVICE_INFO_UUID                   0x0B0D
 #define GATT_READ_SERVICE_UUID                  0x00BB
@@ -7,7 +6,7 @@
 #define GATT_WRITE_SSID_SERVICE_UUID            0x0BB2
 #define GATT_WRITE_PASS_SERVICE_UUID            0x0BB3
 
-#define INFO_BUFFER_SIZE                        180
+#define INFO_BUFFER_SIZE                        200
 #define MANUFACTURER_DATA_SIZE                  17
 #define QUEUE_TOKEN_SIZE                        5
 
@@ -21,7 +20,7 @@ SemaphoreHandle_t buffer_mutex;
 ------------------ Device Info Buffer Cache -----------------------*/
 
 void update_buffer(void){
-    if (customer_info.name == NULL || customer_info.ssid == NULL || customer_info.pass == NULL || customer_info.api_key == NULL || cached_device_info_buffer == NULL) {
+    if (strlen(customer_info.name) == 0 || strlen(customer_info.ssid) == 0 || strlen(customer_info.pass) == 0 || strlen(customer_info.api_key) == 0 || cached_device_info_buffer == NULL) {
         return;
     }
     snprintf(cached_device_info_buffer, INFO_BUFFER_SIZE, "Device Information:\n Name: %s\n DeviceID: %d\n SSID: %s\n Password: %s\n API Key: %s\n",
@@ -51,45 +50,49 @@ void initialize_buffer_cache(void){
 /* ----------------------------------------------------------------
 --------------------- Customer Info Update ------------------------*/
 
-int set_customer_info(const int key, const char *value){
+int ble_set_customer_info(const int key, const char *value, BodilCustomer *customer){
  
     // Function to set values in the customer_info structure based on key-value pairs
     switch(key) {
 
         case PASSWORD:
-            free(customer_info.pass);
-            customer_info.pass = strdup(value);
-            return 1;
+            snprintf(customer->name, sizeof(customer->name), "%s", value);
+            break;
         case NAME:
-            free(customer_info.name);
-            customer_info.name = strdup(value);
-            return 1;
+            snprintf(customer->name, sizeof(customer->name), "%s", value);
+            break;
         case SSID:
-            free(customer_info.ssid);
-            customer_info.ssid = strdup(value);
-            return 1;
+            snprintf(customer->name, sizeof(customer->name), "%s", value);
+            break;
         default: //the key does not match with configuration
             return 0;
     }
+
+    clear_blob_nvs("storage", "customer");
+    save_to_nvs("storage", "customer", customer, sizeof(BodilCustomer));
+    print_customer_info(customer);
+    
+    return 1;
 }
 
 /* ----------------------------------------------------------------
 --------------------- Bluetooth Low Energy -------------------------*/
 
-static int uuid_check(const ble_uuid_t * const* uuid) {
-    uint16_t uuid16 = (uuid->u.u16.value[14] << 8) | uuid->u.u16.value[15];
+// TODO: find a way to get the uuid and compare to handle which field is being changed
+// static int uuid_check(const ble_uuid_t * const* uuid) {
+//     uint16_t uuid16 = (uuid->u.u16.value[14] << 8) | uuid->u.u16.value[15];
 
-    switch (uuid16) {
-        case GATT_WRITE_NAME_SERVICE_UUID:
-            return NAME;
-        case GATT_WRITE_SSID_SERVICE_UUID:
-            return SSID;
-        case GATT_WRITE_PASS_SERVICE_UUID:
-            return PASSWORD;
-        default:
-            return UNKNOWN;
-    }
-}
+//     switch (uuid16) {
+//         case GATT_WRITE_NAME_SERVICE_UUID:
+//             return NAME;
+//         case GATT_WRITE_SSID_SERVICE_UUID:
+//             return SSID;
+//         case GATT_WRITE_PASS_SERVICE_UUID:
+//             return PASSWORD;
+//         default:
+//             return UNKNOWN;
+//     }
+// }
 
 // Read data from ESP32 defined as server
 static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
@@ -120,14 +123,20 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
         memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
         data[ctxt->om->om_len] = '\0';
 
-        int user_set_type = uuid_check(&ctxt->chr->uuid);
+        // int user_set_type = uuid_check(&ctxt->chr->uuid);
+        int user_set_type = NAME;
+
+        // const ble_uuid_t *service_uuid = &ctxt->svc.svc_def->uuid;
+    
+        // Assuming that the UUID is a 16-bit UUID
+        // uint16_t uuid16 = service_uuid | (service_uuid->u.u16.value[1] << 8);
 
         if (user_set_type == UNKNOWN){
             ESP_LOGI("WRITE GATT SERVICE", "UUID not recognized to set available parameters.");
             return 0;
         }
 
-        set_customer_info(user_set_type, data);
+        ble_set_customer_info(user_set_type, data, &customer_info);
         ESP_LOGI("WRITE GATT SERVICE", "New %d set: %s\n", user_set_type, data);
         
         update_buffer();
