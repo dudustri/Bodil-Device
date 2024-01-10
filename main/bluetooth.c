@@ -3,7 +3,10 @@
 
 #define GATT_DEVICE_INFO_UUID                   0x0B0D
 #define GATT_READ_SERVICE_UUID                  0x00BB
-#define GATT_WRITE_SERVICE_UUID                 0x0BBB
+#define GATT_WRITE_NAME_SERVICE_UUID            0x0BB1
+#define GATT_WRITE_SSID_SERVICE_UUID            0x0BB2
+#define GATT_WRITE_PASS_SERVICE_UUID            0x0BB3
+
 #define INFO_BUFFER_SIZE                        180
 #define MANUFACTURER_DATA_SIZE                  17
 #define QUEUE_TOKEN_SIZE                        5
@@ -13,8 +16,6 @@ uint8_t ble_address_type;
 
 // Mutex for synchronizing access to the cached_device_info_buffer
 SemaphoreHandle_t buffer_mutex;
-// Queue for the data sent from the client
-static QueueHandle_t tokenQueue = NULL;
 
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
@@ -50,38 +51,22 @@ void initialize_buffer_cache(void){
 /* ----------------------------------------------------------------
 --------------------- Customer Info Update ------------------------*/
 
-int match_key(const char *key){
-    
-    enum ConfigKey config_key = UNKNOWN;
-
-    if (strcmp(key, "P") == 0) {
-        config_key = PASSWORD;
-    } else if (strcmp(key, "N") == 0) {
-        config_key = NAME;
-    } else if (strcmp(key, "S") == 0) {
-        config_key = SSID;
-    }
-    return config_key;
-}
-
-int set_customer_info(const char *key, const char *value){
+int set_customer_info(const int key, const char *value){
  
-    int config_key = match_key(key);
-
     // Function to set values in the customer_info structure based on key-value pairs
-    switch(config_key) {
+    switch(key) {
 
         case PASSWORD:
-            // strncpy(customer_info.pass, value, sizeof(customer_info.pass) - 1);
-            // customer_info.pass[sizeof(customer_info.pass) - 1] = '\0';
+            free(customer_info.pass);
+            customer_info.pass = strdup(value);
             return 1;
         case NAME:
-            // strncpy(customer_info.name, value, sizeof(customer_info.name) - 1);
-            // customer_info.name[sizeof(customer_info.name) - 1] = '\0';
+            free(customer_info.name);
+            customer_info.name = strdup(value);
             return 1;
         case SSID:
-            // strncpy(customer_info.ssid, value, sizeof(customer_info.ssid) - 1);
-            // customer_info.ssid[sizeof(customer_info.ssid) - 1] = '\0';
+            free(customer_info.ssid);
+            customer_info.ssid = strdup(value);
             return 1;
         default: //the key does not match with configuration
             return 0;
@@ -91,48 +76,33 @@ int set_customer_info(const char *key, const char *value){
 /* ----------------------------------------------------------------
 --------------------- Bluetooth Low Energy -------------------------*/
 
-/*----------------------- Token Queue ------------------------------*/
+static int uuid_check(const ble_uuid_t * const* uuid) {
+    uint16_t uuid16 = (uuid->u.u16.value[14] << 8) | uuid->u.u16.value[15];
 
-static void enqueueToken(const char *token) {
-    // Allocate memory and copy the token
-    char *tokenCopy = strdup(token);
-    if (tokenCopy == NULL) {
-        ESP_LOGE("ENQUEUE TOKEN", "Failed to allocate memory for the current token\n");
-        return;
-    }
-    xQueueSend(tokenQueue, &token, portMAX_DELAY);
-}
-
-static char *dequeueToken() {
-    char *token;
-    if (xQueueReceive(tokenQueue, &token, portMAX_DELAY) == pdTRUE) {
-        return token;
-    }
-    return NULL; // Empty queue
-}
-
-void initTokenQueue() {
-    tokenQueue = xQueueCreate(QUEUE_TOKEN_SIZE, sizeof(char *));
-    if (tokenQueue == NULL) {
-        ESP_LOGE("INIT TOKEN QUEUE", "Failed to create token queue\n");
+    switch (uuid16) {
+        case GATT_WRITE_NAME_SERVICE_UUID:
+            return NAME;
+        case GATT_WRITE_SSID_SERVICE_UUID:
+            return SSID;
+        case GATT_WRITE_PASS_SERVICE_UUID:
+            return PASSWORD;
+        default:
+            return UNKNOWN;
     }
 }
 
-void cleanupTokenQueue() {
-    if (tokenQueue != NULL) {
-        char *token;
-        while (xQueueReceive(tokenQueue, &token, 0) == pdTRUE) {
-            free(token);
-        }
-        vQueueDelete(tokenQueue);
-        tokenQueue = NULL;
+// Read data from ESP32 defined as server
+static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
+    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
+        ESP_LOGI("READ GATT SERVICE", "Read requested by a bluetooth connection!");
+        os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
+        xSemaphoreGive(buffer_mutex);
     }
+    return 0;
 }
 
-
-/*------------------------ Services --------------------------------*/
-// Write data to ESP32 defined as server
-static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
+// Write service to update a parameter in the customer info object
+static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
 
     char *data = NULL;
 
@@ -148,79 +118,25 @@ static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_g
 
         // Copy data from om_data to the dynamically allocated buffer
         memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
-
         data[ctxt->om->om_len] = '\0';
 
-        ESP_LOGI("WRITE GATT SERVICE", "Received data: %s / %s / %d", ctxt->om->om_data, data, ctxt->om->om_len);
+        int user_set_type = uuid_check(&ctxt->chr->uuid);
 
-        //TODO: Implement a queue to send all the tokenized items from the data received! Bug when using strtok twice for different split criteria ...
-
-        char *pairToken = strtok(data, ",");
-        while (pairToken != NULL) {
-            enqueueToken(pairToken);
-            pairToken = strtok(NULL, ",");
-            ESP_LOGI("WRITE GATT SERVICE","tokenizer enqueue: %s\n", pairToken);
+        if (user_set_type == UNKNOWN){
+            ESP_LOGI("WRITE GATT SERVICE", "UUID not recognized to set available parameters.");
+            return 0;
         }
 
-        free(data);
-        char *current;
-
-        while ((current = dequeueToken()) != NULL) {
-            ESP_LOGI("WRITE GATT SERVICE","dequeue result: %s\n", current);
-            // Split key and value
-            char *key = strtok(current, ":");
-            char *value = strtok(NULL, ":");
-
-            if (key != NULL && value != NULL) {
-
-                // Trim leading and trailing whitespaces from key and value
-                while (*key == ' ') key++;
-                char *end = key + strlen(key) - 1;
-                while (end > key && *end == ' ') end--;
-                *(end + 1) = '\0';
-
-                while (*value == ' ') value++;
-                end = value + strlen(value) - 1;
-                while (end > value && *end == ' ') end--;
-                *(end + 1) = '\0';
-
-                // set the values in customer_info and print the new values
-                if (set_customer_info(key, value)) {
-                    ESP_LOGI("WRITE GATT SERVICE", "New %s set: %s\n", key, value);
-                } else {
-                    ESP_LOGI("WRITE GATT SERVICE","Unknown key: %s\n", key);
-                }
-            }
-            // free the memory cointainind the token
-            free(current);
-            // get the next key-value pair
-            current = strtok(NULL, ",");
-        }
-        update_buffer();
-        xSemaphoreGive(buffer_mutex);
-    }
-    return 0;
-}
-
-// Read data from ESP32 defined as server
-static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
-    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
-        ESP_LOGI("READ GATT SERVICE", "Read requested by a bluetooth connection!");
-
-        os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
-
-        // ESP_LOGI("READ GATT SERVICE", "%d bytes.\n", strlen(cached_device_info_buffer));
+        set_customer_info(user_set_type, data);
+        ESP_LOGI("WRITE GATT SERVICE", "New %d set: %s\n", user_set_type, data);
         
-        // ESP_LOGI("READ GATT SERVICE", "%d bytes, context buffer: %s\n", strlen(cached_device_info_buffer), cached_device_info_buffer);
-        // ESP_LOGI("READ GATT SERVICE", "%d bytes, context buffer: %.*s\n", ctxt->om->om_len, ctxt->om->om_len, (char *)(ctxt->om->om_data));
-
+        update_buffer();
+        free(data);
         xSemaphoreGive(buffer_mutex);
-
-        //for debugging
-        // esp_timer_dump(stdout);
     }
     return 0;
 }
+
 
 // Service configs
 // UUID - Universal Unique Identifier
@@ -231,9 +147,15 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
          {.uuid = BLE_UUID16_DECLARE(GATT_READ_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_READ,
           .access_cb = device_read},
-         {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_SERVICE_UUID),
+         {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_NAME_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
-          .access_cb = device_write},
+          .access_cb = device_write_handler},
+         {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_SSID_SERVICE_UUID),
+          .flags = BLE_GATT_CHR_F_WRITE,
+          .access_cb = device_write_handler},
+         {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_PASS_SERVICE_UUID),
+          .flags = BLE_GATT_CHR_F_WRITE,
+          .access_cb = device_write_handler},
          {0}}},
     {0}};
 
