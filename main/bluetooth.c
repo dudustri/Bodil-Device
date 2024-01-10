@@ -3,15 +3,18 @@
 
 #define GATT_DEVICE_INFO_UUID                   0x0B0D
 #define GATT_READ_SERVICE_UUID                  0x00BB
-#define GATT_WRITE_SERVICE_UUID                 0x01BB
+#define GATT_WRITE_SERVICE_UUID                 0x0BBB
 #define INFO_BUFFER_SIZE                        180
 #define MANUFACTURER_DATA_SIZE                  17
+#define QUEUE_TOKEN_SIZE                        5
 
 char *cached_device_info_buffer = NULL;
 uint8_t ble_address_type;
 
 // Mutex for synchronizing access to the cached_device_info_buffer
 SemaphoreHandle_t buffer_mutex;
+// Queue for the data sent from the client
+static QueueHandle_t tokenQueue = NULL;
 
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
@@ -51,11 +54,11 @@ int match_key(const char *key){
     
     enum ConfigKey config_key = UNKNOWN;
 
-    if (strcmp(key, "Password") == 0) {
+    if (strcmp(key, "P") == 0) {
         config_key = PASSWORD;
-    } else if (strcmp(key, "Name") == 0) {
+    } else if (strcmp(key, "N") == 0) {
         config_key = NAME;
-    } else if (strcmp(key, "SSID") == 0) {
+    } else if (strcmp(key, "S") == 0) {
         config_key = SSID;
     }
     return config_key;
@@ -86,8 +89,48 @@ int set_customer_info(const char *key, const char *value){
 }
 
 /* ----------------------------------------------------------------
--------------------- Bluetooth Low Energy --------------------------*/
+--------------------- Bluetooth Low Energy -------------------------*/
 
+/*----------------------- Token Queue ------------------------------*/
+
+static void enqueueToken(const char *token) {
+    // Allocate memory and copy the token
+    char *tokenCopy = strdup(token);
+    if (tokenCopy == NULL) {
+        ESP_LOGE("ENQUEUE TOKEN", "Failed to allocate memory for the current token\n");
+        return;
+    }
+    xQueueSend(tokenQueue, &token, portMAX_DELAY);
+}
+
+static char *dequeueToken() {
+    char *token;
+    if (xQueueReceive(tokenQueue, &token, portMAX_DELAY) == pdTRUE) {
+        return token;
+    }
+    return NULL; // Empty queue
+}
+
+void initTokenQueue() {
+    tokenQueue = xQueueCreate(QUEUE_TOKEN_SIZE, sizeof(char *));
+    if (tokenQueue == NULL) {
+        ESP_LOGE("INIT TOKEN QUEUE", "Failed to create token queue\n");
+    }
+}
+
+void cleanupTokenQueue() {
+    if (tokenQueue != NULL) {
+        char *token;
+        while (xQueueReceive(tokenQueue, &token, 0) == pdTRUE) {
+            free(token);
+        }
+        vQueueDelete(tokenQueue);
+        tokenQueue = NULL;
+    }
+}
+
+
+/*------------------------ Services --------------------------------*/
 // Write data to ESP32 defined as server
 static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
 
@@ -95,9 +138,7 @@ static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_g
 
     if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
         
-        //char * data = (char *)ctxt->om->om_data;
-
-        data = (char *)malloc(ctxt->om->om_len + 1);  // +1 for null terminator
+        data = (char *)malloc(ctxt->om->om_len + 1);
 
         if (data == NULL) {
             ESP_LOGE("WRITE GATT SERVICE", "data buffer memory allocation failed...\n");
@@ -108,31 +149,26 @@ static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_g
         // Copy data from om_data to the dynamically allocated buffer
         memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
 
-        // Null-terminate the string
-        data[ctxt->om->om_len] = '\0';  
+        data[ctxt->om->om_len] = '\0';
 
-        //debug
-
-        ESP_LOGI("WRITE GATT SERVICE", "Received data: %s / %s", ctxt->om->om_data, data);
-        // ESP_LOGI("WRITE GATT SERVICE", "Cached buffer content: %s", cached_device_info_buffer);
-
-        // ESP_LOGI("WRITE GATT SERVICE", "Address of data: %p", (void *)data); //1073534643
-        // ESP_LOGI("WRITE GATT SERVICE", "Address of cached_device_info_buffer: %p", (void *)cached_device_info_buffer); //1073597892
-
-        // size_t size_between_addresses = (size_t)(cached_device_info_buffer - data);
-
-        // ESP_LOGI("WRITE GATT SERVICE", "Size between addresses: %zu bytes", size_between_addresses);
-
+        ESP_LOGI("WRITE GATT SERVICE", "Received data: %s / %s / %d", ctxt->om->om_data, data, ctxt->om->om_len);
 
         //TODO: Implement a queue to send all the tokenized items from the data received! Bug when using strtok twice for different split criteria ...
 
-        // Find the colon in the received data
-        char *pair = strtok(data, ",");
+        char *pairToken = strtok(data, ",");
+        while (pairToken != NULL) {
+            enqueueToken(pairToken);
+            pairToken = strtok(NULL, ",");
+            ESP_LOGI("WRITE GATT SERVICE","tokenizer enqueue: %s\n", pairToken);
+        }
 
-        while (pair != NULL) {
-            ESP_LOGI("WRITE GATT SERVICE","pair result: %s\n", pair);
+        free(data);
+        char *current;
+
+        while ((current = dequeueToken()) != NULL) {
+            ESP_LOGI("WRITE GATT SERVICE","dequeue result: %s\n", current);
             // Split key and value
-            char *key = strtok(pair, ":");
+            char *key = strtok(current, ":");
             char *value = strtok(NULL, ":");
 
             if (key != NULL && value != NULL) {
@@ -155,12 +191,11 @@ static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_g
                     ESP_LOGI("WRITE GATT SERVICE","Unknown key: %s\n", key);
                 }
             }
-
-            // Get the next key-value pair
-            pair = strtok(NULL, ",");
-            ESP_LOGI("WRITE GATT SERVICE","Next pair result: %s\n", pair);
+            // free the memory cointainind the token
+            free(current);
+            // get the next key-value pair
+            current = strtok(NULL, ",");
         }
-        free(data);
         update_buffer();
         xSemaphoreGive(buffer_mutex);
     }
@@ -174,7 +209,7 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 
         os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
 
-        ESP_LOGI("READ GATT SERVICE", "%d bytes.\n", strlen(cached_device_info_buffer));
+        // ESP_LOGI("READ GATT SERVICE", "%d bytes.\n", strlen(cached_device_info_buffer));
         
         // ESP_LOGI("READ GATT SERVICE", "%d bytes, context buffer: %s\n", strlen(cached_device_info_buffer), cached_device_info_buffer);
         // ESP_LOGI("READ GATT SERVICE", "%d bytes, context buffer: %.*s\n", ctxt->om->om_len, ctxt->om->om_len, (char *)(ctxt->om->om_data));

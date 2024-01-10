@@ -14,6 +14,7 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_bt.h"
+#include "freertos/queue.h"
 
 // Function Declarations
 void update_buffer(void);
