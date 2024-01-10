@@ -24,8 +24,10 @@
 	"idf.adapterTargetName": "esp32",
 	"C_Cpp.errorSquiggles": "disabled",
 	"files.associations": {
-		"data.h": "c",
 		"client.h": "c",
-		"bluetooth.h": "c"
+		"bluetooth.h": "c",
+		"stdio.h": "c",
+		"bodil_iot.h": "c",
+		"wifi_connection.h": "c"
 	}
 }
