@@ -15,15 +15,16 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_bt.h"
+#include "bodil_IoT.h"
 
 // Function Declarations
 void update_buffer(void);
 void initialize_buffer_cache(void);
-int match_key(const char *key);
-int set_customer_info(const int key, const char *value);
-void ble_task(void *param);
+int match_key(const char *);
+int ble_set_customer_info(const int, const char *, BodilCustomer *);
+void ble_task(void *);
 void ble_advertisement(void);
 void ble_start_on_sync(void);
-int initialize_bluetooth_service(char *BLE_device_name);
+int initialize_bluetooth_service(char *);
 
 #endif
