@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <regex.h>
 #include "sdkconfig.h"
 #include "esp_nimble_hci.h"
 #include "nimble/nimble_port.h"
@@ -14,13 +15,12 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_bt.h"
-#include "freertos/queue.h"
 
 // Function Declarations
 void update_buffer(void);
 void initialize_buffer_cache(void);
 int match_key(const char *key);
-int set_customer_info(const char *key, const char *value);
+int set_customer_info(const int key, const char *value);
 void ble_task(void *param);
 void ble_advertisement(void);
 void ble_start_on_sync(void);
