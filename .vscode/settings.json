@@ -28,6 +28,8 @@
 		"bluetooth.h": "c",
 		"stdio.h": "c",
 		"bodil_iot.h": "c",
-		"wifi_connection.h": "c"
+		"wifi_connection.h": "c",
+		"gsm.h": "c",
+		"cstdlib": "c"
 	}
 }
