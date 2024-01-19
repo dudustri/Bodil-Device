@@ -30,6 +30,8 @@
 		"bodil_iot.h": "c",
 		"wifi_connection.h": "c",
 		"gsm.h": "c",
-		"cstdlib": "c"
+		"cstdlib": "c",
+		"esp_netif_ppp.h": "c",
+		"esp_modem_config.h": "c"
 	}
 }
