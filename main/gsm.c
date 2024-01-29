@@ -106,17 +106,30 @@ static void on_ppp_changed(void *arg, esp_event_base_t event_base, int32_t event
 
 void start_gsm_module(void){
     
-    esp_err_t ret;
+    esp_err_t ret_check;
 
-    // TODO: implement error handling for the netif and event handlers, etc...
-
-    esp_netif_init(); // initiates network interface
-    esp_event_loop_create_default(); // dispatch events loop callback
-    esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &on_ip_event, NULL);
-    esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
+    ret_check = esp_netif_init(); // initiates network interface
+    if (ret_check != ESP_OK) {
+        ESP_LOGE("NETIF - Initialization", "netif init failed with %d", ret_check);
+        return;
+    }
+    ret_check = esp_event_loop_create_default(); // dispatch events loop callback
+    if (ret_check != ESP_OK) {
+        ESP_LOGE("EVENT LOOP - Creation", "Event Loop creation failed with %d", ret_check);
+        return;
+    }
+    ret_check = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &on_ip_event, NULL);
+    if (ret_check != ESP_OK) {
+        ESP_LOGE("IP EVENT HANDLER - Register", "IP event handler registering failed with %d", ret_check);
+        return;
+    }
+    ret_check = esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
+    if (ret_check != ESP_OK) {
+        ESP_LOGE("PPP EVENT HANDLER - Register", "PPP event handler registering failed with %d", ret_check);
+        return;
+    }
 
     /* Configure the PPP netif */
-    //TODO: Fix this to PPP interface configuration
     esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
     esp_netif_t *esp_netif = esp_netif_new(&netif_ppp_config);
     assert(esp_netif);
@@ -133,10 +146,9 @@ void start_gsm_module(void){
     check_signal_quality(gsm_modem);
 
     // set the GSM module to data mode
-    ret = esp_modem_set_mode(gsm_modem, ESP_MODEM_MODE_DATA);
-    if (ret != ESP_OK) {
-        ESP_LOGE("SET DATA MODE - ESP MODEM", "esp_modem_set_mode(ESP_MODEM_MODE_DATA) failed with %d", ret);
+    ret_check = esp_modem_set_mode(gsm_modem, ESP_MODEM_MODE_DATA);
+    if (ret_check != ESP_OK) {
+        ESP_LOGE("SET DATA MODE - ESP MODEM", "esp_modem_set_mode(ESP_MODEM_MODE_DATA) failed with %d", ret_check);
         return;
     }
-
 }
