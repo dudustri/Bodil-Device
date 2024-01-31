@@ -12,6 +12,7 @@
 #include "bluetooth.h"
 #include "gsm.h"
 // #include "esp_sleep.h"
+#include "led_control_sim.h"
 
 #define BLE_DEVICE_NAME "BodilBox"
 
@@ -121,10 +122,12 @@ void periodic_heatpump_state_check_task(void *pvParameter)
         else
         {
             ESP_LOGI("WIFI CONNECTION", "Not connected to WiFi. Waiting 2 seconds to execute a new request...\n");
+            change_to_next_color(led_state);
             vTaskDelay(2000 / portTICK_PERIOD_MS);
+            continue;
         }
         // Wait for 15 seconds before making the next request
-        vTaskDelay(30000 / portTICK_PERIOD_MS);
+        vTaskDelay(15000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -133,16 +136,18 @@ bool is_credentials_set(const BodilCustomer *customer)
     return !(strcmp(customer->ssid, "") == 0 || strcmp(customer->pass, "") == 0 || strcmp(customer->name, "") == 0);
 }
 
+//TODO: create struct to store the connection type GSM or WiFi and its netif and module objects
 void handle_netif_mode(const BodilCustomer *customer)
 {
+    // WIFI interface initialization
 
-    if (is_credentials_set(customer) && wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
+    if (wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
     {
-        ESP_LOGI("Netif Mode Handler", "Automatic connection established with the Wi-Fi module in station mode!");
+        ESP_LOGI("Netif Mode Handler", "Automatic connection established with the Wi-Fi module in station mode! %d", is_credentials_set(customer));
         return;
     }
-
-    if (start_gsm_module() != ESP_OK)
+    // GSM interface initialization
+    if (start_gsm_module() == ESP_OK)
     {
         ESP_LOGI("Netif Mode Handler", "Automatic connection established with the GSM module in data mode!");
         return;
@@ -177,15 +182,11 @@ void app_main(void)
         save_to_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));
     }
 
+    led_init();
+
     initialize_bluetooth_service(BLE_DEVICE_NAME);
 
-    // TODO: create a wrapper function that will decide whether interface use WIFI x GSM
-
-    // WIFI interface initialization
-    wifi_connection_start(customer_info.ssid, customer_info.pass);
-
-    // GSM interface initialization
-    start_gsm_module();
+    handle_netif_mode(&customer_info);
 
     // Create a periodic task that calls get_heatpump_set_state every 15 seconds
     xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, NULL /*arguments*/, 3, NULL /*handlers*/);

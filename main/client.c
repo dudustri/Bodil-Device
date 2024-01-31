@@ -1,5 +1,6 @@
 
 #include "client.h"
+#include "led_control_sim.h"
 
 // get http request event handler
 esp_err_t client_handler(esp_http_client_event_handle_t event)
@@ -8,6 +9,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     {
     case HTTP_EVENT_ON_DATA:
         printf("HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
+        change_to_next_color(led_state);
         break;
 
     default:

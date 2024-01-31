@@ -32,7 +32,8 @@
 		"gsm.h": "c",
 		"cstdlib": "c",
 		"esp_netif_ppp.h": "c",
-		"esp_modem_config.h": "c"
+		"esp_modem_config.h": "c",
+		"led_control_sim.h": "c"
 	},
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": true

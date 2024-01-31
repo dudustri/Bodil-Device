@@ -13,6 +13,7 @@
 #include "esp_netif_ppp.h"
 #include "esp_http_client.h"
 #include "driver/uart.h"
+#include "driver/gpio.h"
 #include "esp_modem_api.h"
 #include "esp_modem_config.h"
 #include "esp_modem_dce_config.h"

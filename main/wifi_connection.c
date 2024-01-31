@@ -2,7 +2,7 @@
 
 // connection retry state
 int retry_conn_num = 0;
-esp_netif_t* netif_pointer = NULL;
+esp_netif_t *netif_pointer = NULL;
 
 // handler for the wifi events loop
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
@@ -49,25 +49,40 @@ esp_err_t wifi_connection_init()
 
     init_check = esp_netif_init(); // initiates network interface
     if (init_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI INIT", "Error initializing netif");
         return init_check;
+    }
 
     init_check = esp_event_loop_create_default(); // dispatch events loop callback
     if (init_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI INIT", "Error Creating Event Loop! Free Heap Size: %d bytes\n", heap_caps_get_free_size(MALLOC_CAP_DEFAULT));
         return init_check;
+    }
 
     netif_pointer = esp_netif_create_default_wifi_sta(); // create default wifi station
-    if (netif_pointer != NULL)
+    if (netif_pointer == NULL)
+    {
+        ESP_LOGE("WIFI INIT", "Error creating WiFi STA netif");
         return ESP_FAIL;
+    }
 
     wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 
     init_check = esp_wifi_init(&wifi_init_config); // initialize wifi
     if (init_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI INIT", "Error initializing WiFi!");
         return init_check;
+    }
 
     init_check = esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL); // register event handler for events
     if (init_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI INIT", "Error Registering Wi-Fi event handler!");
         return init_check;
+    }
 
     init_check = esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL); // register event handler for network
     return init_check;
@@ -84,28 +99,43 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
         },
     };
 
-    wifi_check = wifi_connection_init();
-    if (wifi_check != ESP_OK)
-        return wifi_check;
-
     strcpy((char *)wifi_configuration.sta.ssid, ssid);
     strcpy((char *)wifi_configuration.sta.password, pass);
 
+    wifi_check = wifi_connection_init();
+    if (wifi_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI Start", "Error initializiing module WiFi... \n");
+        return wifi_check;
+    }
+
     wifi_check = esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_configuration);
     if (wifi_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI Start", "Set STA config Error \n");
         return wifi_check;
+    }
 
     wifi_check = esp_wifi_start(); // start wifi
     if (wifi_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI Start", "Error starting WiFi...\n");
         return wifi_check;
+    }
 
     wifi_check = esp_wifi_set_mode(WIFI_MODE_STA); // set wifi mode to connect to an existing Wi-Fi network as a client (station)
     if (wifi_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI Start", "STA set mode error.\n");
         return wifi_check;
+    }
 
     wifi_check = esp_wifi_connect();
     if (wifi_check != ESP_OK)
+    {
+        ESP_LOGE("WIFI Start", "Connection error!\n");
         return wifi_check;
+    }
 
     do
     {
@@ -113,9 +143,8 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
         vTaskDelay(1200 * retry_conn_num / portTICK_PERIOD_MS);
     } while (wifi_check != ESP_OK && retry_conn_num < 5);
 
-
     return wifi_check == ESP_OK ? ESP_OK : destroy_wifi_module(netif_pointer) == ESP_OK ? ESP_FAIL
-                                                                       : ESP_ERR_WIFI_NOT_INIT;
+                                                                                        : ESP_ERR_WIFI_NOT_INIT;
 }
 
 esp_err_t wifi_connection_get_status()
