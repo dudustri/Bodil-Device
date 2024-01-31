@@ -20,4 +20,9 @@
 #include "lwip/sys.h"
 #include "lwip/ip4_addr.h"
 
+esp_err_t start_gsm_module(void);
+int set_pin(esp_modem_dce_t *, const char *);
+void destroy_gsm_module(esp_modem_dce_t *, esp_netif_t *);
+void check_signal_quality(esp_modem_dce_t *);
+
 #endif

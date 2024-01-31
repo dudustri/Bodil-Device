@@ -8,10 +8,11 @@
 #include "lwip/sys.h"
 #include "lwip/ip4_addr.h"
 
-extern int retry_conn_num; 
+extern int retry_conn_num;
 
-void wifi_connection_init();
-void wifi_connection_start(const char *, const char *);
-int wifi_connection_get_status();
+esp_err_t wifi_connection_init();
+esp_err_t wifi_connection_start(const char *, const char *);
+esp_err_t wifi_connection_get_status();
+esp_err_t destroy_wifi_module(esp_netif_t *);
 
 #endif

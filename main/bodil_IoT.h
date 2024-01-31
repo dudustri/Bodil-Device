@@ -6,7 +6,8 @@
 #define MAX_PASS_LENGTH 32
 #define MAX_API_KEY_LENGTH 32
 
-typedef struct BodilCustomer{
+typedef struct BodilCustomer
+{
     char name[MAX_NAME_LENGTH];
     int deviceid;
     char ssid[MAX_SSID_LENGTH];
@@ -14,7 +15,8 @@ typedef struct BodilCustomer{
     char api_key[MAX_API_KEY_LENGTH];
 } BodilCustomer;
 
-enum ConfigKey {
+enum ConfigKey
+{
     PASSWORD,
     NAME,
     SSID,
@@ -30,6 +32,6 @@ void load_from_nvs(const char *, const char *, void *, size_t);
 void print_customer_info(const BodilCustomer *);
 void set_customer_info(BodilCustomer *, const char *, int, const char *, const char *, const char *);
 void periodic_heatpump_state_check_task(void *);
-
+bool is_credentials_set(const BodilCustomer *);
 
 #endif
