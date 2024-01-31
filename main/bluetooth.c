@@ -1,14 +1,14 @@
 #include "bluetooth.h"
 
-#define GATT_DEVICE_INFO_UUID                   0x0B0D
-#define GATT_READ_SERVICE_UUID                  0x00BB
-#define GATT_WRITE_NAME_SERVICE_UUID            0x0BB1
-#define GATT_WRITE_SSID_SERVICE_UUID            0x0BB2
-#define GATT_WRITE_PASS_SERVICE_UUID            0x0BB3
+#define GATT_DEVICE_INFO_UUID 0x0B0D
+#define GATT_READ_SERVICE_UUID 0x00BB
+#define GATT_WRITE_NAME_SERVICE_UUID 0x0BB1
+#define GATT_WRITE_SSID_SERVICE_UUID 0x0BB2
+#define GATT_WRITE_PASS_SERVICE_UUID 0x0BB3
 
-#define INFO_BUFFER_SIZE                        200
-#define MANUFACTURER_DATA_SIZE                  17
-#define QUEUE_TOKEN_SIZE                        5
+#define INFO_BUFFER_SIZE 200
+#define MANUFACTURER_DATA_SIZE 17
+#define QUEUE_TOKEN_SIZE 5
 
 char *cached_device_info_buffer = NULL;
 uint8_t ble_address_type;
@@ -19,20 +19,24 @@ SemaphoreHandle_t buffer_mutex;
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
 
-void update_buffer(void){
-    if (strlen(customer_info.name) == 0 || strlen(customer_info.ssid) == 0 || strlen(customer_info.pass) == 0 || strlen(customer_info.api_key) == 0 || cached_device_info_buffer == NULL) {
+void update_buffer(void)
+{
+    if (strlen(customer_info.name) == 0 || strlen(customer_info.ssid) == 0 || strlen(customer_info.pass) == 0 || strlen(customer_info.api_key) == 0 || cached_device_info_buffer == NULL)
+    {
         return;
     }
     snprintf(cached_device_info_buffer, INFO_BUFFER_SIZE, "Device Information:\n Name: %s\n DeviceID: %d\n SSID: %s\n Password: %s\n API Key: %s\n",
-        customer_info.name, customer_info.deviceid, customer_info.ssid, customer_info.pass, customer_info.api_key);
+             customer_info.name, customer_info.deviceid, customer_info.ssid, customer_info.pass, customer_info.api_key);
 }
 
-void initialize_buffer_cache(void){
+void initialize_buffer_cache(void)
+{
 
     cached_device_info_buffer = NULL;
     cached_device_info_buffer = (char *)calloc(INFO_BUFFER_SIZE, sizeof(char));
 
-    if (cached_device_info_buffer == NULL) {
+    if (cached_device_info_buffer == NULL)
+    {
         ESP_LOGE("Customer Info Cache", "Customer info's cached buffer memory allocation failed...\n");
         return;
     }
@@ -40,7 +44,8 @@ void initialize_buffer_cache(void){
     update_buffer();
 
     buffer_mutex = xSemaphoreCreateMutex();
-        if (buffer_mutex == NULL) {
+    if (buffer_mutex == NULL)
+    {
         ESP_LOGE("Mutex", "Mutex creation failed...\n");
         free(cached_device_info_buffer);
         cached_device_info_buffer = NULL;
@@ -50,28 +55,30 @@ void initialize_buffer_cache(void){
 /* ----------------------------------------------------------------
 --------------------- Customer Info Update ------------------------*/
 
-int ble_set_customer_info(const int key, const char *value, BodilCustomer *customer){
- 
-    // Function to set values in the customer_info structure based on key-value pairs
-    switch(key) {
+int ble_set_customer_info(const int key, const char *value, BodilCustomer *customer)
+{
 
-        case PASSWORD:
-            snprintf(customer->name, sizeof(customer->name), "%s", value);
-            break;
-        case NAME:
-            snprintf(customer->name, sizeof(customer->name), "%s", value);
-            break;
-        case SSID:
-            snprintf(customer->name, sizeof(customer->name), "%s", value);
-            break;
-        default: //the key does not match with configuration
-            return 0;
+    // Function to set values in the customer_info structure based on key-value pairs
+    switch (key)
+    {
+
+    case PASSWORD:
+        snprintf(customer->name, sizeof(customer->name), "%s", value);
+        break;
+    case NAME:
+        snprintf(customer->name, sizeof(customer->name), "%s", value);
+        break;
+    case SSID:
+        snprintf(customer->name, sizeof(customer->name), "%s", value);
+        break;
+    default: // the key does not match with configuration
+        return 0;
     }
 
     clear_blob_nvs("storage", "customer");
     save_to_nvs("storage", "customer", customer, sizeof(BodilCustomer));
     print_customer_info(customer);
-    
+
     return 1;
 }
 
@@ -95,8 +102,10 @@ int ble_set_customer_info(const int key, const char *value, BodilCustomer *custo
 // }
 
 // Read data from ESP32 defined as server
-static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
-    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
+static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
+    {
         ESP_LOGI("READ GATT SERVICE", "Read requested by a bluetooth connection!");
         os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
         xSemaphoreGive(buffer_mutex);
@@ -105,15 +114,18 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 }
 
 // Write service to update a parameter in the customer info object
-static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg){
+static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
 
     char *data = NULL;
 
-    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE) {
-        
+    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
+    {
+
         data = (char *)malloc(ctxt->om->om_len + 1);
 
-        if (data == NULL) {
+        if (data == NULL)
+        {
             ESP_LOGE("WRITE GATT SERVICE", "data buffer memory allocation failed...\n");
             free(data);
             return 1;
@@ -127,25 +139,25 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
         int user_set_type = NAME;
 
         // const ble_uuid_t *service_uuid = &ctxt->svc.svc_def->uuid;
-    
+
         // Assuming that the UUID is a 16-bit UUID
         // uint16_t uuid16 = service_uuid | (service_uuid->u.u16.value[1] << 8);
 
-        if (user_set_type == UNKNOWN){
+        if (user_set_type == UNKNOWN)
+        {
             ESP_LOGI("WRITE GATT SERVICE", "UUID not recognized to set available parameters.");
             return 0;
         }
 
         ble_set_customer_info(user_set_type, data, &customer_info);
         ESP_LOGI("WRITE GATT SERVICE", "New %d set: %s\n", user_set_type, data);
-        
+
         update_buffer();
         free(data);
         xSemaphoreGive(buffer_mutex);
     }
     return 0;
 }
-
 
 // Service configs
 // UUID - Universal Unique Identifier
@@ -168,9 +180,9 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
          {0}}},
     {0}};
 
-
 // Bluetooth event handler
-static int ble_gap_event(struct ble_gap_event *event, void *arg){
+static int ble_gap_event(struct ble_gap_event *event, void *arg)
+{
     switch (event->type)
     {
     // Advertise if connected
@@ -180,8 +192,10 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg){
         {
             ble_advertisement();
         }
-        else{
-            if(cached_device_info_buffer == NULL) initialize_buffer_cache();
+        else
+        {
+            if (cached_device_info_buffer == NULL)
+                initialize_buffer_cache();
         }
         break;
     // Advertise again after completion of the event
@@ -200,8 +214,9 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg){
     return 0;
 }
 
-//TODO: Implement an bluetooth advertisement / module activation with http request and change the advertisement interval 
-void ble_advertisement(void){
+// TODO: Implement an bluetooth advertisement / module activation with http request and change the advertisement interval
+void ble_advertisement(void)
+{
     // GAP service name configuration
     int rc;
     struct ble_hs_adv_fields fields;
@@ -215,15 +230,16 @@ void ble_advertisement(void){
     // Set the device type, flags
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
 
-    //TODO: manufacturer data...
-    // Set the manufacturer data
-    // const char *manufacturer_name = "Bodil Energy ApS";
+    // TODO: manufacturer data...
+    //  Set the manufacturer data
+    //  const char *manufacturer_name = "Bodil Energy ApS";
 
     // fields.mfg_data =  manufacturer_name;
     // fields.mfg_data_len = MANUFACTURER_DATA_SIZE;
 
     rc = ble_gap_adv_set_fields(&fields);
-    if (rc != 0 ){
+    if (rc != 0)
+    {
         ESP_LOGE("BLE Advertisement", "error setting advertisement data; rc=%d\n", rc);
         return;
     }
@@ -237,7 +253,7 @@ void ble_advertisement(void){
     adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
     // no white list for connecting devices
     adv_params.filter_policy = BLE_HCI_SCAN_FILT_NO_WL;
-    //advertising interval in units of 0.625 ms 
+    // advertising interval in units of 0.625 ms
     adv_params.itvl_min = 160; // 100 ms
     adv_params.itvl_max = 800; // 500 ms
     // high duty cycle deactivated to save energy - no high connection performance is needed
@@ -245,28 +261,30 @@ void ble_advertisement(void){
 
     rc = ble_gap_adv_start(ble_address_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event, NULL);
 
-    if (rc != 0) {
+    if (rc != 0)
+    {
         ESP_LOGE("BLE Advertisement", "error enabling advertisement; rc=%d\n", rc);
         return;
     }
-    
 }
 
-void ble_start_on_sync(void){
+void ble_start_on_sync(void)
+{
     ble_hs_id_infer_auto(0, &ble_address_type); // determines the best address type automatically
     ESP_LOGI("BLE ADDRESS TYPE", "%d /n", ble_address_type);
     ble_advertisement();
 }
 
-
 // main ble process
-void ble_task(void *param){
+void ble_task(void *param)
+{
     nimble_port_run(); // returns only when nimble_port_stop() is executed
 }
 
-int initialize_bluetooth_service(char *BLE_device_name){
-    nimble_port_init(); 
-    ble_svc_gap_device_name_set(BLE_device_name); // set the service name to be read inside the advertisement function 
+int initialize_bluetooth_service(char *BLE_device_name)
+{
+    nimble_port_init();
+    ble_svc_gap_device_name_set(BLE_device_name); // set the service name to be read inside the advertisement function
     ble_svc_gap_init();                           // initialize NimBLE configuration - gap service
     ble_svc_gatt_init();                          // ~~ gatt service
     ble_gatts_count_cfg(gatt_svcs);               // ~~ config gatt services
