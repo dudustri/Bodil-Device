@@ -15,6 +15,12 @@ typedef struct BodilCustomer
     char api_key[MAX_API_KEY_LENGTH];
 } BodilCustomer;
 
+enum NetworkModuleUsed{
+    WIFI,
+    GSM,
+    DEACTIVATED
+};
+
 enum ConfigKey
 {
     PASSWORD,

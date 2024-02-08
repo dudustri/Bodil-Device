@@ -18,6 +18,8 @@
 
 struct BodilCustomer customer_info;
 
+enum NetworkModuleUsed netif_connected_module = DEACTIVATED;
+
 extern int retry_conn_num;
 
 void init_customer_info(BodilCustomer *customer)
@@ -136,7 +138,6 @@ bool is_credentials_set(const BodilCustomer *customer)
     return !(strcmp(customer->ssid, "") == 0 || strcmp(customer->pass, "") == 0 || strcmp(customer->name, "") == 0);
 }
 
-//TODO: create struct to store the connection type GSM or WiFi and its netif and module objects
 void handle_netif_mode(const BodilCustomer *customer)
 {
     // WIFI interface initialization
@@ -144,12 +145,14 @@ void handle_netif_mode(const BodilCustomer *customer)
     if (wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
     {
         ESP_LOGI("Netif Mode Handler", "Automatic connection established with the Wi-Fi module in station mode! %d", is_credentials_set(customer));
+        netif_connected_module = WIFI;
         return;
     }
     // GSM interface initialization
     if (start_gsm_module() == ESP_OK)
     {
         ESP_LOGI("Netif Mode Handler", "Automatic connection established with the GSM module in data mode!");
+        netif_connected_module = GSM;
         return;
     }
     ESP_LOGE("Netif Mode Handler", "Entering in standby mode since neither module could stabilish a network connection...");
