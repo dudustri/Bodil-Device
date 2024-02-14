@@ -1742,6 +1742,14 @@ CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP=0
 # CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY is not set
 # CONFIG_ESP_MODEM_ADD_CUSTOM_MODULE is not set
 # end of esp-modem
+
+#
+# jsmn
+#
+# CONFIG_JSMN_PARENT_LINKS is not set
+# CONFIG_JSMN_STRICT is not set
+# CONFIG_JSMN_STATIC is not set
+# end of jsmn
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set
