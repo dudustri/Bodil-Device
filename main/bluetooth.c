@@ -57,19 +57,17 @@ void initialize_buffer_cache(void)
 
 int ble_set_customer_info(const int key, const char *value, BodilCustomer *customer)
 {
-
     // Function to set values in the customer_info structure based on key-value pairs
     switch (key)
     {
-
     case PASSWORD:
-        snprintf(customer->name, sizeof(customer->name), "%s", value);
+        snprintf(customer->pass, sizeof(customer->pass), "%s", value);
         break;
     case NAME:
         snprintf(customer->name, sizeof(customer->name), "%s", value);
         break;
     case SSID:
-        snprintf(customer->name, sizeof(customer->name), "%s", value);
+        snprintf(customer->ssid, sizeof(customer->ssid), "%s", value);
         break;
     default: // the key does not match with configuration
         return 0;
@@ -85,21 +83,18 @@ int ble_set_customer_info(const int key, const char *value, BodilCustomer *custo
 /* ----------------------------------------------------------------
 --------------------- Bluetooth Low Energy -------------------------*/
 
-// TODO: find a way to get the uuid and compare to handle which field is being changed
-// static int uuid_check(const ble_uuid_t * const* uuid) {
-//     uint16_t uuid16 = (uuid->u.u16.value[14] << 8) | uuid->u.u16.value[15];
-
-//     switch (uuid16) {
-//         case GATT_WRITE_NAME_SERVICE_UUID:
-//             return NAME;
-//         case GATT_WRITE_SSID_SERVICE_UUID:
-//             return SSID;
-//         case GATT_WRITE_PASS_SERVICE_UUID:
-//             return PASSWORD;
-//         default:
-//             return UNKNOWN;
-//     }
-// }
+static int uuid_check(uint16_t uuid) {
+    switch (uuid) {
+        case GATT_WRITE_NAME_SERVICE_UUID:
+            return NAME;
+        case GATT_WRITE_SSID_SERVICE_UUID:
+            return SSID;
+        case GATT_WRITE_PASS_SERVICE_UUID:
+            return PASSWORD;
+        default:
+            return UNKNOWN;
+    }
+}
 
 // Read data from ESP32 defined as server
 static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
@@ -113,17 +108,16 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
     return 0;
 }
 
-// Write service to update a parameter in the customer info object
+// Write service callback to update a parameter in the customer info object
 static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-
     char *data = NULL;
+    uint16_t uuid = *((uint16_t *)arg);
 
     if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
     {
 
         data = (char *)malloc(ctxt->om->om_len + 1);
-
         if (data == NULL)
         {
             ESP_LOGE("WRITE GATT SERVICE", "data buffer memory allocation failed...\n");
@@ -135,13 +129,7 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
         memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
         data[ctxt->om->om_len] = '\0';
 
-        // int user_set_type = uuid_check(&ctxt->chr->uuid);
-        int user_set_type = NAME;
-
-        // const ble_uuid_t *service_uuid = &ctxt->svc.svc_def->uuid;
-
-        // Assuming that the UUID is a 16-bit UUID
-        // uint16_t uuid16 = service_uuid | (service_uuid->u.u16.value[1] << 8);
+        int user_set_type = uuid_check(uuid);
 
         if (user_set_type == UNKNOWN)
         {
@@ -170,13 +158,16 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
           .access_cb = device_read},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_NAME_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
-          .access_cb = device_write_handler},
+          .access_cb = device_write_handler,
+          .arg = (void *)GATT_WRITE_NAME_SERVICE_UUID},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_SSID_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
-          .access_cb = device_write_handler},
+          .access_cb = device_write_handler,
+          .arg = (void *)GATT_WRITE_SSID_SERVICE_UUID},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_PASS_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
-          .access_cb = device_write_handler},
+          .access_cb = device_write_handler,
+          .arg = (void *)GATT_WRITE_PASS_SERVICE_UUID},
          {0}}},
     {0}};
 
