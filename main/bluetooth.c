@@ -7,7 +7,7 @@
 #define GATT_WRITE_PASS_SERVICE_UUID 0x0BB3
 
 #define INFO_BUFFER_SIZE 200
-#define MANUFACTURER_DATA_SIZE 17
+#define MANUFACTURER_DATA_SIZE 16
 #define QUEUE_TOKEN_SIZE 5
 
 char *cached_device_info_buffer = NULL;
@@ -205,7 +205,9 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg)
     return 0;
 }
 
-// TODO: Implement an bluetooth advertisement / module activation with http request and change the advertisement interval
+// TODO: 
+// Implement ble module activation when there is no netif network connection and review the advertisement interval
+// Add also the deactivation when the device is already connected to the network by wifi or gsm.
 void ble_advertisement(void)
 {
     // GAP service name configuration
@@ -221,12 +223,12 @@ void ble_advertisement(void)
     // Set the device type, flags
     fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
 
-    // TODO: manufacturer data...
     //  Set the manufacturer data
-    //  const char *manufacturer_name = "Bodil Energy ApS";
-
-    // fields.mfg_data =  manufacturer_name;
-    // fields.mfg_data_len = MANUFACTURER_DATA_SIZE;
+    static const uint8_t manufacturer_data[MANUFACTURER_DATA_SIZE] = {
+    'B', 'o', 'd', 'i', 'l', ' ', 'E', 'n', 'e', 'r', 'g', 'y', ' ', 'A', 'p', 'S'
+    };
+    fields.mfg_data =  manufacturer_data;
+    fields.mfg_data_len = MANUFACTURER_DATA_SIZE;
 
     rc = ble_gap_adv_set_fields(&fields);
     if (rc != 0)
