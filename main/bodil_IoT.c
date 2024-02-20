@@ -138,24 +138,31 @@ bool is_credentials_set(const BodilCustomer *customer)
     return !(strcmp(customer->ssid, "") == 0 || strcmp(customer->pass, "") == 0 || strcmp(customer->name, "") == 0);
 }
 
-void handle_netif_mode(const BodilCustomer *customer)
+void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type)
 {
     // WIFI interface initialization
 
-    if (wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
+    if ( is_credentials_set(customer) && wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
     {
-        ESP_LOGI("Netif Mode Handler", "Automatic connection established with the Wi-Fi module in station mode! %d", is_credentials_set(customer));
-        netif_connected_module = WIFI;
+        ESP_LOGI("Netif Mode Handler", "Automatic connection established with the Wi-Fi module in station mode!");
+        *module_type = WIFI;
         return;
     }
     // GSM interface initialization
     if (start_gsm_module() == ESP_OK)
     {
         ESP_LOGI("Netif Mode Handler", "Automatic connection established with the GSM module in data mode!");
-        netif_connected_module = GSM;
+        *module_type = GSM;
         return;
     }
     ESP_LOGE("Netif Mode Handler", "Entering in standby mode since neither module could stabilish a network connection...");
+}
+
+//TODO: do a logic handler to switch on and off the bluetooth based on the connection type!
+// change the connection type to DEACTIVATED if one of the modules initially connected doesn't work for certain time
+// similar to an timeout. Then it turns on the  bluetooth stack and log the problem.
+void connection_status_handler(){
+    return;
 }
 
 void app_main(void)
@@ -187,9 +194,11 @@ void app_main(void)
 
     led_init();
 
-    initialize_bluetooth_service(BLE_DEVICE_NAME);
+    handle_netif_mode(&customer_info, &netif_connected_module);
 
-    handle_netif_mode(&customer_info);
+    if(netif_connected_module == DEACTIVATED){
+        initialize_bluetooth_service(BLE_DEVICE_NAME);
+    }
 
     // Create a periodic task that calls get_heatpump_set_state every 15 seconds
     xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, NULL /*arguments*/, 3, NULL /*handlers*/);
@@ -199,7 +208,8 @@ void app_main(void)
         // just do whatever in the main thread loop for now
         ESP_LOGI("MAIN THREAD", "1 minute passed in the main thread \n");
         vTaskDelay(60000 / portTICK_PERIOD_MS);
-
+        //TODO: put here the connection check
+        connection_status_handler();
         // ------------------------------------------------------------------------------------------------
         // energy saving mode to use in the future
         // esp_deep_sleep(5 * 60 * 1000000);  // Sleep for 5 minutes in microseconds
