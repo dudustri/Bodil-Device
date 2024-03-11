@@ -9,11 +9,11 @@
 #define TOKEN_SIZE 128
 
 enum EnergyConsumptionState{
-    MAX,
-    MEDIUM,
-    LOW,
-    OFF,
     UNKNOWN,
+    NORMAL,
+    MEDIUM,
+    OFF,
+    MAX,
 };
 
 typedef struct StateData {
