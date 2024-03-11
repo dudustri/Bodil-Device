@@ -21,7 +21,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
 void get_heatpump_set_state()
 {
     esp_http_client_config_t config_get = {
-        .url = "http://worldtimeapi.org/api/timezone/Europe/Copenhagen",
+        .url = "http://192.168.0.25:6000/device/1000",
         .method = HTTP_METHOD_GET,
         .cert_pem = NULL,
         .event_handler = client_handler};
