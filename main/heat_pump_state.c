@@ -17,18 +17,18 @@ void heat_pump_state_destroy(StateData* state){
     free(state);
 }
 
-void setEnergyConsumptionState(StateData* state, int timestamp, enum EnergyConsumptionState state_response){
+void set_energy_consumption_state(StateData* state, int timestamp, enum EnergyConsumptionState state_response){
     if (state != NULL) {
         state->timestamp = timestamp;
         state->state = state_response;
     }
 }
 
-StateData *getCurrentEnergyConsumptionState(void){
+StateData *get_current_energy_consumptionState(void){
     return current_state;
 }
 
-enum EnergyConsumptionState matchStateFromTokensObject(int new_state){
+enum EnergyConsumptionState match_state_from_tokens_object(int new_state){
     switch(new_state){
     case 0: return UNKNOWN;
     case 1: return NORMAL;
@@ -39,11 +39,11 @@ enum EnergyConsumptionState matchStateFromTokensObject(int new_state){
     }
 }
 
-StateData *identifyNewState(jsmntok_t *tokens){
+StateData *identify_new_state(jsmntok_t *tokens){
     return current_state;
 }
 
-int processHeapPumpEnergyStateResponse(const char* server_response, jsmntok_t *tokens){
+int process_heap_pump_energy_state_response(const char* server_response, jsmntok_t *tokens){
 
     jsmn_init(&parser);
     // TODO:
@@ -76,4 +76,49 @@ int processHeapPumpEnergyStateResponse(const char* server_response, jsmntok_t *t
     // setEnergyConsumptionState(current_state, new_state->timestamp, matchStateFromTokensObject(new_state->state));
     return 0;
 
+}
+
+int json_key_is_equal(const char *json, jsmntok_t *token, const char *key) {
+    if (token->type == JSMN_STRING && (int) strlen(key) == token->end - token->start &&
+        strncmp(json + token->start, key, token->end - token->start) == 0) {
+        return 0;
+    }
+    return -1;
+}
+
+//TODO: change this function to initialize a StateData when needed and return the current when it has no change !
+void identify_new_state_print_mock_parser(jsmntok_t *tokens, int range, const char *json) {
+    // Iterate through all tokens
+    for (int i = 0; i < range; i++) {
+
+        // Check for the StateChanges key
+        if (tokens[i].type == JSMN_STRING && json_key_is_equal(json, &tokens[i], "StateChanges") == 0) {
+            // StateChanges found -> check the array type as next token
+            if (tokens[i + 1].type == JSMN_ARRAY) {
+                int array_index = i + 1;
+                int obj_content_index = array_index + 1;
+
+                //loop through the array size (i = "StateChanges")
+                for (int j = 0; j < tokens[array_index].size; j++) {
+                    // get the index of the objects inside the array - in this case we have 4 tokens for each + 1 first token [object itself] 
+                    obj_content_index = obj_content_index + (tokens[array_index].size*tokens[obj_content_index].size+1)*j;
+
+                    long long timestamp = -1;
+                    int state = -1;
+
+                    if (tokens[obj_content_index + 3].type == JSMN_STRING && json_key_is_equal(json, &tokens[obj_content_index + 3], "Timestamp") == 0) {
+                        timestamp = atoll(json + tokens[obj_content_index + 4].start);
+                    }
+                    if (tokens[obj_content_index + 1].type == JSMN_STRING && json_key_is_equal(json, &tokens[obj_content_index + 1], "State") == 0) {
+                        state = atoi(json + tokens[obj_content_index + 2].start);
+                    }
+                    ESP_LOGI("SERVER RESPONSE PARSER", "Timestamp: %lld, State: %d\n", timestamp, state);
+                }
+            } else {
+                ESP_LOGI("SERVER RESPONSE PARSER", "StateChanges is not an array\n");
+            }
+            // Stop the parsing process since we processed the StageChanges Array
+            break;
+        }
+    }
 }
