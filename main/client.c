@@ -1,6 +1,7 @@
 
 #include "client.h"
 #include "led_control_sim.h"
+// #include "heat_pump_state.h"
 
 // get http request event handler
 esp_err_t client_handler(esp_http_client_event_handle_t event)
@@ -8,10 +9,13 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     switch (event->event_id)
     {
     case HTTP_EVENT_ON_DATA:
-        printf("HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
-        change_to_next_color(led_state);
+        ESP_LOGI("CLIENT HANDLER - ", "HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
+        //TODO: fix this function to be called properly using the right pointers to tokens and to the current state!
+        // process_heap_pump_energy_state_response(event->data, tokens, get_current_energy_consumptionState());
         break;
-
+    case HTTP_EVENT_ERROR:
+        ESP_LOGE("CLIENT HANDLER - ", "HTTP_EVENT_ERROR: %.*s\n", event->data_len, (char *)event->data);
+        break;
     default:
         break;
     }
