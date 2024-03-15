@@ -124,7 +124,7 @@ void periodic_heatpump_state_check_task(void *pvParameter)
         else
         {
             ESP_LOGI("WIFI CONNECTION", "Not connected to WiFi. Waiting 2 seconds to execute a new request...\n");
-            change_to_next_color(led_state);
+            change_led_to_red_color();
             vTaskDelay(5000 / portTICK_PERIOD_MS);
             continue;
         }
