@@ -126,6 +126,7 @@ void periodic_heatpump_state_check_task(void *pvParameter)
             ESP_LOGI("WIFI CONNECTION", "Not connected to WiFi. Waiting 2 seconds to execute a new request...\n");
             change_led_to_red_color();
             vTaskDelay(5000 / portTICK_PERIOD_MS);
+            set_darkness();
             continue;
         }
         // Wait for 5 seconds before making the next request
@@ -193,6 +194,8 @@ void app_main(void)
     }
 
     led_init();
+    heat_pump_state_init();
+    machine_control_init();
 
     handle_netif_mode(&customer_info, &netif_connected_module);
 

@@ -45,3 +45,7 @@ void change_to_next_color(enum LedState current_state)
 void change_led_to_red_color(){
     set_led_state(RED);
 }
+
+void set_darkness(){
+    set_led_state(DARK);
+}
