@@ -1,7 +1,7 @@
 
 #include "led_control_sim.h"
 
-enum LedState led_state = OFF;
+enum LedState led_state = DARK;
 
 void led_init(void)
 {
@@ -15,9 +15,9 @@ void led_init(void)
 
 void set_led_state(enum LedState led_state)
 {
-    gpio_set_level(RED_PIN, led_state == RED || led_state == REDBLUE || led_state == REDGREEN || led_state == MAX);
-    gpio_set_level(BLUE_PIN, led_state == BLUE || led_state == REDBLUE || led_state == BLUEGREEN || led_state == MAX);
-    gpio_set_level(GREEN_PIN, led_state == GREEN || led_state == REDGREEN || led_state == BLUEGREEN || led_state == MAX);
+    gpio_set_level(RED_PIN, led_state == RED || led_state == REDBLUE || led_state == REDGREEN || led_state == ALL);
+    gpio_set_level(BLUE_PIN, led_state == BLUE || led_state == REDBLUE || led_state == BLUEGREEN || led_state == ALL);
+    gpio_set_level(GREEN_PIN, led_state == GREEN || led_state == REDGREEN || led_state == BLUEGREEN || led_state == ALL);
 }
 
 void change_to_next_color(enum LedState current_state)
@@ -33,11 +33,11 @@ void change_to_next_color(enum LedState current_state)
     case GREEN:
         led_state = RED;
         break;
-    case MAX:
+    case ALL:
         led_state = GREEN;
         break;
     default:
-        led_state = MAX;
+        led_state = ALL;
     }
     set_led_state(led_state);
 }

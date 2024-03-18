@@ -7,10 +7,9 @@
 #define SMART_GRID_CONTROLLER_PIN_1 GPIO_NUM_25
 #define SMART_GRID_CONTROLLER_PIN_2 GPIO_NUM_26
 
-extern enum EnergyConsumptionState machine_state;
-
 void machine_control_init(void);
-enum EnergyConsumptionState get_current_machine_state(void);
+enum EnergyConsumptionState get_current_machine_state(StateData *);
 void send_control_signal(enum EnergyConsumptionState);
+void change_to_next_state(enum EnergyConsumptionState);
 
 #endif
