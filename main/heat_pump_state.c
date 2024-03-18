@@ -1,13 +1,12 @@
+#define INCLUDE_JSMN
 #include "heat_pump_state.h"
 
-jsmn_parser parser;
-jsmntok_t tokens[TOKEN_SIZE];
 StateData* current_state = NULL;
 
 StateData *heat_pump_state_init(void){
     current_state = (StateData*)malloc(sizeof(StateData));
     if (current_state != NULL) {
-        current_state->state = UNKNOWN;
+        current_state->state = NORMAL;
         current_state->timestamp = 0;
     }
     return current_state;
@@ -24,18 +23,18 @@ void set_energy_consumption_state(StateData* state, int timestamp, enum EnergyCo
     }
 }
 
-StateData *get_current_energy_consumptionState(void){
+StateData * get_current_energy_consumptionState(void){
     return current_state;
 }
 
 char * match_state_from_tokens_object(int new_state){
     switch(new_state){
-    case 0: return "UNKNOWN";
+    case 0: return "UNKNOWN_ENERGY_STATE";
     case 1: return "NORMAL";
     case 2: return "MEDIUM";
     case 3: return "OFF";
     case 4: return "MAX";
-    default: return "UNKNOWN";
+    default: return "UNKNOWN_ENERGY_STATE";
     }
 }
 
@@ -95,8 +94,10 @@ bool identify_and_set_state(jsmntok_t *tokens, int range, const char *json, Stat
 }
 
 
-bool process_heap_pump_energy_state_response(const char* server_response, jsmntok_t *tokens, StateData* state){
+bool process_heat_pump_energy_state_response(const char* server_response){
 
+    jsmn_parser parser;
+    jsmntok_t tokens[TOKEN_SIZE];
     jsmn_init(&parser);
 
     int parser_status = jsmn_parse(&parser, server_response, strlen(server_response), tokens, TOKEN_SIZE);
@@ -110,10 +111,10 @@ bool process_heap_pump_energy_state_response(const char* server_response, jsmnto
         return 1;
     }
 
-    if (!identify_and_set_state(tokens, parser_status, server_response, state)){
+    if (!identify_and_set_state(tokens, parser_status, server_response, current_state)){
         ESP_LOGI("Energy State Update", "No state with a valid timestamp was identified. The state will not be changed.");
         return false;
     }
-    ESP_LOGI("Energy State Update", "A new state was set! State: %s\n", match_state_from_tokens_object(state->state));
+    ESP_LOGI("Energy State Update", "A new state was set! State: %s\n", match_state_from_tokens_object(current_state->state));
     return true;
 }

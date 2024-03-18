@@ -15,8 +15,8 @@ enum LedState
     REDBLUE,
     REDGREEN,
     BLUEGREEN,
-    MAX,
-    OFF
+    ALL,
+    DARK
 };
 
 extern enum LedState led_state;
