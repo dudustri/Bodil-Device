@@ -17,26 +17,3 @@ void send_control_signal(enum EnergyConsumptionState machine_state){
 enum EnergyConsumptionState get_current_machine_state(StateData * current_status){
     return current_status->state;
 }
-
-// This method is only for testing purposes!!! Do not use it in production/field applications
-void change_to_next_state(enum EnergyConsumptionState machine_state)
-{
-    switch (machine_state)
-    {
-    case NORMAL:
-        machine_state = MEDIUM;
-        break;
-    case MEDIUM:
-        machine_state = OFF;
-        break;
-    case OFF:
-        machine_state = MAX;
-        break;
-    case MAX:
-        machine_state = NORMAL;
-        break;
-    default:
-        machine_state = NORMAL;
-    }
-    send_control_signal(machine_state);
-}

@@ -35,7 +35,7 @@ bool process_heat_pump_energy_state_response(const char*);
 #ifdef INCLUDE_JSMN
     #include "jsmn.h"
 
-    bool json_key_is_equal(const char *, jsmntok_t *, const char *);
+    int json_key_is_equal(const char *, jsmntok_t *, const char *);
     bool identify_and_set_state(jsmntok_t *, int, const char *, StateData*);
 
 #endif

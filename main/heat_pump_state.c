@@ -1,9 +1,11 @@
 #define INCLUDE_JSMN
 #include "heat_pump_state.h"
 
+jsmn_parser parser;
+jsmntok_t tokens[TOKEN_SIZE];
 StateData* current_state = NULL;
 
-StateData *heat_pump_state_init(void){
+StateData * heat_pump_state_init(void){
     current_state = (StateData*)malloc(sizeof(StateData));
     if (current_state != NULL) {
         current_state->state = NORMAL;
@@ -38,12 +40,12 @@ char * match_state_from_tokens_object(int new_state){
     }
 }
 
-bool json_key_is_equal(const char *json, jsmntok_t *token, const char *key) {
+int json_key_is_equal(const char *json, jsmntok_t *token, const char *key) {
     if (token->type == JSMN_STRING && (int) strlen(key) == token->end - token->start &&
         strncmp(json + token->start, key, token->end - token->start) == 0) {
-        return true;
+        return 0;
     }
-    return false;
+    return 1;
 }
 
 //TODO: change this function to initialize a StateData when needed and return the current when it has no change !
@@ -76,45 +78,48 @@ bool identify_and_set_state(jsmntok_t *tokens, int range, const char *json, Stat
 
                     // Always get the first one if there are more than one and check if it is valid! Ordered by nature of the response!
                     if (timestamp != -1 && state != -1 &&current_state->timestamp < timestamp && (unsigned long)time(NULL) < timestamp){
-                        set_energy_consumption_state(current_state, timestamp, state);
+                        if(current_state->state != state){
+                            set_energy_consumption_state(current_state, timestamp, state);
+                            ESP_LOGI("Energy State Update", "A new state was set! State: %s\n", match_state_from_tokens_object(current_state->state));
+                        }else{
+                            ESP_LOGI("Energy State Update", "The state received is the same as the current one... State: %s\n", match_state_from_tokens_object(current_state->state));
+                        }
                         return true;
                     }
                 }
             } else {
-                ESP_LOGI("SERVER RESPONSE PARSER", "StateChanges is not an array\n");
+                ESP_LOGI("SERVER RESPONSE PARSER", "StateChanges is not an array %.*s\n", tokens[i+1].end - tokens[i+1].start, json + tokens[i+1].start);
             }
             // Stop the parsing process since we processed the StageChanges Array
             return false;
         }
-        ESP_LOGI("SERVER RESPONSE PARSER", "StateChanges was not found in the response\n");
-        return false;
     }
-    ESP_LOGI("SERVER RESPONSE PARSER", "Empty server response!\n");
+    ESP_LOGI("SERVER RESPONSE PARSER", "StateChanges was not found in the response\n");
     return false;
 }
 
 
 bool process_heat_pump_energy_state_response(const char* server_response){
 
-    jsmn_parser parser;
-    jsmntok_t tokens[TOKEN_SIZE];
     jsmn_init(&parser);
+
+    // ESP_LOGI("Jasmine JSON Parser", "Received server_response to be processed %s\n", server_response);
 
     int parser_status = jsmn_parse(&parser, server_response, strlen(server_response), tokens, TOKEN_SIZE);
 
     if(parser_status < 0){
         ESP_LOGE("Jasmine JSON Parser", "Failed to parse JSON: %d\n", parser_status);
+        return false;
     }
 
     if (parser_status < 1 || tokens[0].type != JSMN_OBJECT) {
         ESP_LOGE("Jasmine JSON Parser", "Object expected\n");
-        return 1;
+        return false;
     }
 
     if (!identify_and_set_state(tokens, parser_status, server_response, current_state)){
         ESP_LOGI("Energy State Update", "No state with a valid timestamp was identified. The state will not be changed.");
         return false;
     }
-    ESP_LOGI("Energy State Update", "A new state was set! State: %s\n", match_state_from_tokens_object(current_state->state));
     return true;
 }

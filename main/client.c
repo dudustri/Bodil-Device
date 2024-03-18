@@ -8,7 +8,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     {
     case HTTP_EVENT_ON_DATA:
         ESP_LOGI("CLIENT HANDLER - ", "HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
-        process_heat_pump_energy_state_response(event->data);
+        if(process_heat_pump_energy_state_response((char *)event->data)) send_control_signal(get_current_energy_consumptionState()->state);
         break;
     case HTTP_EVENT_ERROR:
         ESP_LOGE("CLIENT HANDLER - ", "HTTP_EVENT_ERROR: %.*s\n", event->data_len, (char *)event->data);
@@ -22,7 +22,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
 void get_heatpump_set_state()
 {
     esp_http_client_config_t config_get = {
-        .url = "http://192.168.0.25:6000/device/1000",
+        .url = "http://192.168.0.25:6000/random_test",
         .method = HTTP_METHOD_GET,
         .cert_pem = NULL,
         .event_handler = client_handler};

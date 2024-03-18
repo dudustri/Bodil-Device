@@ -36,7 +36,12 @@
 		"led_control_sim.h": "c",
 		"string.h": "c",
 		"machine_control.h": "c",
-		"heat_pump_state.h": "c"
+		"heat_pump_state.h": "c",
+		"array": "c",
+		"string": "c",
+		"string_view": "c",
+		"jsmn.h": "c",
+		"esp_log.h": "c"
 	},
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": true
