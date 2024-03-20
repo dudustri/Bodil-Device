@@ -120,17 +120,17 @@ void periodic_heatpump_state_check_task(void *pvParameter)
         if (wifi_status == ESP_OK)
         {
             get_heatpump_set_state();
+            // Wait for 15 seconds before making the next request
+            vTaskDelay(15000 / portTICK_PERIOD_MS);
         }
         else
         {
-            ESP_LOGI("WIFI CONNECTION", "Not connected to WiFi. Waiting 2 seconds to execute a new request...\n");
+            ESP_LOGI("WIFI CONNECTION", "Not connected to WiFi. Waiting 5 seconds to execute a new request...\n");
             change_led_to_red_color();
             vTaskDelay(5000 / portTICK_PERIOD_MS);
             set_darkness();
             continue;
         }
-        // Wait for 5 seconds before making the next request
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -209,8 +209,8 @@ void app_main(void)
     while (1)
     {
         // just do whatever in the main thread loop for now
-        ESP_LOGI("MAIN THREAD", "1 minute passed in the main thread \n");
-        vTaskDelay(60000 / portTICK_PERIOD_MS);
+        ESP_LOGI("MAIN THREAD", "5 minutes passed in the main thread \n");
+        vTaskDelay(300000 / portTICK_PERIOD_MS);
         //TODO: put here the connection check
         connection_status_handler();
         // ------------------------------------------------------------------------------------------------
