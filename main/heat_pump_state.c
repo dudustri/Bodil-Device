@@ -48,7 +48,6 @@ int json_key_is_equal(const char *json, jsmntok_t *token, const char *key) {
     return 1;
 }
 
-//TODO: change this function to initialize a StateData when needed and return the current when it has no change !
 bool identify_and_set_state(jsmntok_t *tokens, int range, const char *json, StateData* current_state) {
     // Iterate through all tokens
     for (int i = 0; i < range; i++) {

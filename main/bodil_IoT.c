@@ -139,6 +139,7 @@ bool is_credentials_set(const BodilCustomer *customer)
     return !(strcmp(customer->ssid, "") == 0 || strcmp(customer->pass, "") == 0 || strcmp(customer->name, "") == 0);
 }
 
+//TODO: maybe add a BLUETOOTH option to the module type to identify it and destroy the BLE object when a connection is established
 void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type)
 {
     // WIFI interface initialization
@@ -157,12 +158,16 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
         return;
     }
     ESP_LOGE("Netif Mode Handler", "Entering in standby mode since neither module could stabilish a network connection...");
+    *module_type = DEACTIVATED;
 }
 
 //TODO: do a logic handler to switch on and off the bluetooth based on the connection type!
 // change the connection type to DEACTIVATED if one of the modules initially connected doesn't work for certain time
 // similar to an timeout. Then it turns on the  bluetooth stack and log the problem.
-void connection_status_handler(){
+void connection_status_handler(char * ble_name){
+    if(netif_connected_module == DEACTIVATED){
+        initialize_bluetooth_service(ble_name);
+    }
     return;
 }
 
@@ -212,7 +217,7 @@ void app_main(void)
         ESP_LOGI("MAIN THREAD", "5 minutes passed in the main thread \n");
         vTaskDelay(300000 / portTICK_PERIOD_MS);
         //TODO: put here the connection check
-        connection_status_handler();
+        connection_status_handler(BLE_DEVICE_NAME);
         // ------------------------------------------------------------------------------------------------
         // energy saving mode to use in the future
         // esp_deep_sleep(5 * 60 * 1000000);  // Sleep for 5 minutes in microseconds
