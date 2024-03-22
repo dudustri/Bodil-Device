@@ -9,7 +9,6 @@ void machine_control_init(void){
 }
 
 void send_control_signal(enum EnergyConsumptionState machine_state){
-    //TODO: send it for how long, is this just a square signal, sine? for now is set as a continuous on/off
     gpio_set_level(SMART_GRID_CONTROLLER_PIN_1, machine_state == MEDIUM || machine_state == MAX);
     gpio_set_level(SMART_GRID_CONTROLLER_PIN_2, machine_state == OFF || machine_state == MAX);
 }
