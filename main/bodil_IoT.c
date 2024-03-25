@@ -1,114 +1,10 @@
-#include <stdio.h>
-#include <string.h>
-#include "freertos/FreeRTOS.h"
-#include "esp_system.h"
-#include "esp_wifi.h"
-#include "esp_log.h"
-#include "esp_event.h"
-#include "nvs_flash.h"
 #include "bodil_IoT.h"
-#include "client.h"
-#include "wifi_connection.h"
-#include "bluetooth.h"
-#include "gsm.h"
-// #include "esp_sleep.h"
-#include "led_control_sim.h"
 
 #define BLE_DEVICE_NAME "BodilBox"
-
-struct BodilCustomer customer_info;
 
 enum NetworkModuleUsed netif_connected_module = DEACTIVATED;
 
 extern int retry_conn_num;
-
-void init_customer_info(BodilCustomer *customer)
-{
-    memset(customer, 0, sizeof(BodilCustomer));
-}
-
-void clear_blob_nvs(const char *namespace, const char *key)
-{
-
-    nvs_handle_t nvs;
-    esp_err_t ret = nvs_open(namespace, NVS_READWRITE, &nvs);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE("Non Volatile Storage Erase", "Error opening NVS namespace: %d\n", ret);
-        return;
-    }
-
-    // Erase the specific key storing a blob
-    ret = nvs_erase_key(nvs, key);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE("Non Volatile Storage Erase", "Error erasing NVS key: %d\n", ret);
-    }
-
-    nvs_commit(nvs);
-    nvs_close(nvs);
-}
-
-void save_to_nvs(const char *namespace, const char *key, const void *data, size_t size)
-{
-    nvs_handle_t nvs;
-    esp_err_t err;
-
-    err = nvs_open(namespace, NVS_READWRITE, &nvs);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE("Non Volatile Storage Save", "Error opening NVS namespace: %d\n", err);
-        return;
-    }
-
-    err = nvs_set_blob(nvs, key, data, size);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE("Non Volatile Storage Save", "Error setting NVS key: %d\n", err);
-    }
-
-    nvs_commit(nvs);
-    nvs_close(nvs);
-}
-
-void load_from_nvs(const char *namespace, const char *key, void *data, size_t size)
-{
-    nvs_handle_t nvs;
-    esp_err_t err;
-
-    err = nvs_open(namespace, NVS_READWRITE, &nvs);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE("Non Volatile Storage Load", "Error opening NVS namespace: %d\n", err);
-        return;
-    }
-
-    err = nvs_get_blob(nvs, key, data, &size);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE("Non Volatile Storage Load", "Error getting NVS key: %d\n", err);
-    }
-
-    nvs_close(nvs);
-}
-
-void print_customer_info(const BodilCustomer *customer)
-{
-    ESP_LOGI("Customer Info ->", "Name: %s\n", customer->name);
-    ESP_LOGI("Customer Info ->", "Device ID: %d\n", customer->deviceid);
-    ESP_LOGI("Customer Info ->", "SSID: %s\n", customer->ssid);
-    ESP_LOGI("Customer Info ->", "Password: %s\n", customer->pass);
-    ESP_LOGI("Customer Info ->", "API Key: %s\n", customer->api_key);
-}
-
-void set_customer_info(BodilCustomer *customer, const char *name, int deviceid, const char *ssid, const char *pass, const char *api_key)
-{
-    snprintf(customer->name, sizeof(customer->name), "%s", name);
-    customer->deviceid = deviceid;
-    snprintf(customer->ssid, sizeof(customer->ssid), "%s", ssid);
-    snprintf(customer->pass, sizeof(customer->pass), "%s", pass);
-    snprintf(customer->api_key, sizeof(customer->api_key), "%s", api_key);
-}
 
 void periodic_heatpump_state_check_task(void *pvParameter)
 {
@@ -132,11 +28,6 @@ void periodic_heatpump_state_check_task(void *pvParameter)
             continue;
         }
     }
-}
-
-bool is_credentials_set(const BodilCustomer *customer)
-{
-    return !(strcmp(customer->ssid, "") == 0 || strcmp(customer->pass, "") == 0 || strcmp(customer->name, "") == 0);
 }
 
 //TODO: maybe add a BLUETOOTH option to the module type to identify it and destroy the BLE object when a connection is established

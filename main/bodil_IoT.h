@@ -1,19 +1,20 @@
 #ifndef BODIL_IOT_H
 #define BODIL_IOT_H
 
-#define MAX_NAME_LENGTH 32
-#define MAX_SSID_LENGTH 32
-#define MAX_PASS_LENGTH 32
-#define MAX_API_KEY_LENGTH 32
-
-typedef struct BodilCustomer
-{
-    char name[MAX_NAME_LENGTH];
-    int deviceid;
-    char ssid[MAX_SSID_LENGTH];
-    char pass[MAX_PASS_LENGTH];
-    char api_key[MAX_API_KEY_LENGTH];
-} BodilCustomer;
+#include "freertos/FreeRTOS.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "esp_log.h"
+#include "esp_event.h"
+#include "client.h"
+#include "wifi_connection.h"
+#include "bluetooth.h"
+#include "gsm.h"
+#include "led_control_sim.h"
+#include "heat_pump_state.h"
+#include "machine_control.h"
+#include "customer_info.h"
+#include "non_volatile_memory.h"
 
 enum NetworkModuleUsed{
     WIFI,
@@ -21,23 +22,6 @@ enum NetworkModuleUsed{
     DEACTIVATED
 };
 
-enum ConfigKey
-{
-    PASSWORD,
-    NAME,
-    SSID,
-    UNKNOWN
-};
-
-extern struct BodilCustomer customer_info;
-
-void init_customer_info(BodilCustomer *);
-void clear_blob_nvs(const char *, const char *);
-void save_to_nvs(const char *, const char *, const void *, size_t);
-void load_from_nvs(const char *, const char *, void *, size_t);
-void print_customer_info(const BodilCustomer *);
-void set_customer_info(BodilCustomer *, const char *, int, const char *, const char *, const char *);
 void periodic_heatpump_state_check_task(void *);
-bool is_credentials_set(const BodilCustomer *);
 
 #endif
