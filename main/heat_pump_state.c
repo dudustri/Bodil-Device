@@ -1,4 +1,6 @@
 #define INCLUDE_JSMN
+#define HP_STATE_MANAGER
+#define INTERNAL_HP_STATE
 #include "heat_pump_state.h"
 
 jsmn_parser parser;

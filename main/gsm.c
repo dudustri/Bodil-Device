@@ -1,3 +1,4 @@
+#define INTERNAL_GSM
 #include "gsm.h"
 
 // PPPoS Configuration

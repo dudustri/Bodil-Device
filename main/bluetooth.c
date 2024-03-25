@@ -1,3 +1,4 @@
+#define INTERNAL_BLUETOOTH
 #include "bluetooth.h"
 
 #define GATT_DEVICE_INFO_UUID 0x0B0D

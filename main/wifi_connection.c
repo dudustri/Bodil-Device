@@ -1,3 +1,4 @@
+#define INTERNAL_WIFI_MODULE
 #include "wifi_connection.h"
 
 // connection retry state

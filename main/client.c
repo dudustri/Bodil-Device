@@ -1,4 +1,4 @@
-
+#define INTERNAL_CLIENT
 #include "client.h"
 
 char * truncate_event_data(char *data) {
