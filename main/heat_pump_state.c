@@ -2,7 +2,7 @@
 #include "heat_pump_state.h"
 
 jsmn_parser parser;
-jsmntok_t tokens[TOKEN_SIZE];
+jsmntok_t tokens[RESPONSE_DATA_SIZE];
 StateData* current_state = NULL;
 
 StateData * heat_pump_state_init(void){
@@ -73,7 +73,7 @@ bool identify_and_set_state(jsmntok_t *tokens, int range, const char *json, Stat
                         state = atoi(json + tokens[obj_content_index + 2].start);
                     }
 
-                    ESP_LOGI("SERVER RESPONSE PARSER", "Item %d -> Timestamp: %llu, State: %d\n", i, timestamp, state);
+                    ESP_LOGI("SERVER RESPONSE PARSER", "Unpacked token ~ key: %d / sub: %d-> Timestamp: %llu, State: %d\n", i, j, timestamp, state);
 
                     // Always get the first one if there are more than one and check if it is valid! Ordered by nature of the response!
                     if (timestamp != -1 && state != -1 &&current_state->timestamp < timestamp && (unsigned long)time(NULL) < timestamp){
@@ -102,12 +102,11 @@ bool process_heat_pump_energy_state_response(const char* server_response){
 
     jsmn_init(&parser);
 
-    // ESP_LOGI("Jasmine JSON Parser", "Received server_response to be processed %s\n", server_response);
-
-    int parser_status = jsmn_parse(&parser, server_response, strlen(server_response), tokens, TOKEN_SIZE);
+    int parser_status = jsmn_parse(&parser, server_response, strlen(server_response), tokens, RESPONSE_DATA_SIZE);
 
     if(parser_status < 0){
         ESP_LOGE("Jasmine JSON Parser", "Failed to parse JSON: %d\n", parser_status);
+        ESP_LOGE("Jasmine JSON Parser", "Received server_response to be processed %s - %d size\n", server_response, strlen(server_response));
         return false;
     }
 

@@ -9,8 +9,8 @@ void machine_control_init(void){
 }
 
 void send_control_signal(enum EnergyConsumptionState machine_state){
-    gpio_set_level(SMART_GRID_CONTROLLER_PIN_1, machine_state == MEDIUM || machine_state == MAX);
-    gpio_set_level(SMART_GRID_CONTROLLER_PIN_2, machine_state == OFF || machine_state == MAX);
+    gpio_set_level(SMART_GRID_CONTROLLER_PIN_1, machine_state == OFF || machine_state == NORMAL);
+    gpio_set_level(SMART_GRID_CONTROLLER_PIN_2, machine_state == MEDIUM || machine_state == NORMAL);
 }
 
 enum EnergyConsumptionState get_current_machine_state(StateData * current_status){

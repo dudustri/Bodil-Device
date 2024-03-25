@@ -1,6 +1,14 @@
 
 #include "client.h"
 
+char * truncate_event_data(char *data) {
+    if (strlen(data) > RESPONSE_DATA_SIZE) {
+        // Truncate to the pre defined size of the tokens
+        data[RESPONSE_DATA_SIZE] = '\0';
+    }
+    return data;
+}
+
 // get http request event handler
 esp_err_t client_handler(esp_http_client_event_handle_t event)
 {
@@ -8,7 +16,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     {
     case HTTP_EVENT_ON_DATA:
         ESP_LOGI("CLIENT HANDLER - ", "HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
-        if(process_heat_pump_energy_state_response((char *)event->data)) send_control_signal(get_current_energy_consumptionState()->state);
+        if(process_heat_pump_energy_state_response(truncate_event_data((char *)event->data))) send_control_signal(get_current_energy_consumptionState()->state);
         break;
     case HTTP_EVENT_ERROR:
         ESP_LOGE("CLIENT HANDLER - ", "HTTP_EVENT_ERROR: %.*s\n", event->data_len, (char *)event->data);

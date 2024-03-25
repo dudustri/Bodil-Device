@@ -6,7 +6,7 @@
 #include "esp_system.h"
 #include <time.h>
 
-#define TOKEN_SIZE 89
+#define RESPONSE_DATA_SIZE 88
 
 enum EnergyConsumptionState{
     UNKNOWN_ENERGY_STATE,
