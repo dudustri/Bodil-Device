@@ -20,7 +20,7 @@ void heat_pump_state_destroy(StateData* state){
     free(state);
 }
 
-void set_energy_consumption_state(StateData* state, int timestamp, enum EnergyConsumptionState state_response){
+void set_energy_consumption_state(StateData* state, unsigned long long timestamp, enum EnergyConsumptionState state_response){
     if (state != NULL && 0 <= state_response && state_response <= 4) {
         state->timestamp = timestamp;
         state->state = state_response;
@@ -77,8 +77,9 @@ bool identify_and_set_state(jsmntok_t *tokens, int range, const char *json, Stat
 
                     ESP_LOGI("SERVER RESPONSE PARSER", "Unpacked token ~ key: %d / sub: %d-> Timestamp: %llu, State: %d\n", i, j, timestamp, state);
 
+                    // The timestamp received is always the start one
                     // Always get the first one if there are more than one and check if it is valid! Ordered by nature of the response!
-                    if (timestamp != -1 && state != -1 &&current_state->timestamp < timestamp && (unsigned long)time(NULL) < timestamp){
+                    if (timestamp != -1 && state != -1 && current_state->timestamp <= timestamp){
                         if(current_state->state != state){
                             set_energy_consumption_state(current_state, timestamp, state);
                             ESP_LOGI("Energy State Update", "A new state was set! State: %s\n", match_state_from_tokens_object(current_state->state));
