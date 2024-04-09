@@ -99,6 +99,8 @@ void app_main(void)
         initialize_bluetooth_service(BLE_DEVICE_NAME);
     }
 
+    //TODO: create a function to retrieve the api key if is empty!
+
     // Create a periodic task that calls get_heatpump_set_state every 15 seconds
     xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, NULL /*arguments*/, 3, NULL /*handlers*/);
 
