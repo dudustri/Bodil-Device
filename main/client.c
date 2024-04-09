@@ -27,16 +27,21 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     return ESP_OK;
 }
 
-void get_heatpump_set_state()
+//TODO: find a way to pass the customer object to compose the request and the api key
+void get_heatpump_set_state()//const BodilCustomer *customer)
 {
     esp_http_client_config_t config_get = {
-        .url = "http://192.168.0.25:6000/random_test",
+        .url = "http:/xx.xx.xx.xx:8080/device/xxxx/current", // <- retrieve from bodil customer obj
         .method = HTTP_METHOD_GET,
         .cert_pem = NULL,
         .event_handler = client_handler};
 
     esp_http_client_handle_t client = esp_http_client_init(&config_get);
-    esp_http_client_perform(client);
+    esp_http_client_set_header(client, "bodil-api-key", "retrieve frmom bodil customer object");
+    esp_err_t err = esp_http_client_perform(client);
+    if (err != ESP_OK) {
+        ESP_LOGE("HTTP CLIENT PERFORM","HTTP request failed: %d\n", err);
+    }
     esp_http_client_cleanup(client);
 }
 
