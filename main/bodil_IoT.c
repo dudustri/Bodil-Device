@@ -2,6 +2,9 @@
 
 #define BLE_DEVICE_NAME "BodilBox"
 
+const char* default_ssid = getenv("SSID_DEFAULT");
+const char* default_pass = getenv("PASS_DEFAULT");
+
 enum NetworkModuleUsed netif_connected_module = DEACTIVATED;
 
 extern int retry_conn_num;
@@ -16,8 +19,11 @@ void periodic_heatpump_state_check_task(void *pvParameter)
         if (wifi_status == ESP_OK)
         {
             get_heatpump_set_state();
+            change_led_to_blue_color();
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
             // Wait for 15 seconds before making the next request
-            vTaskDelay(15000 / portTICK_PERIOD_MS);
+            set_darkness();
+            vTaskDelay(14000 / portTICK_PERIOD_MS);
         }
         else
         {
@@ -84,7 +90,7 @@ void app_main(void)
     // If deviceid is zero then the device shoud be reseted to the default values
     if (customer_info.deviceid == 0)
     {
-        set_customer_info(&customer_info, "bodil_dev", 1, "Bodil_Fiber", "99741075", "api_key");
+        set_customer_info(&customer_info, "bodil_dev", 1, default_ssid, default_pass, "api_key");
         print_customer_info(&customer_info);
         save_to_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));
     }

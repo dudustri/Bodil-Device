@@ -4,8 +4,8 @@
 #include "driver/gpio.h"
 
 #define RED_PIN GPIO_NUM_25
-#define BLUE_PIN GPIO_NUM_26
-#define GREEN_PIN GPIO_NUM_27
+#define BLUE_PIN GPIO_NUM_32
+#define GREEN_PIN GPIO_NUM_33
 
 enum LedState
 {
@@ -25,6 +25,8 @@ void led_init(void);
 void set_led_state(enum LedState);
 void change_to_next_color(enum LedState);
 void change_led_to_red_color(void);
+void change_led_to_blue_color(void);
+void change_led_to_green_color(void);
 void set_darkness(void);
 
 #endif
