@@ -46,6 +46,14 @@ void change_led_to_red_color(){
     set_led_state(RED);
 }
 
+void change_led_to_green_color(){
+    set_led_state(GREEN);
+}
+
+void change_led_to_blue_color(){
+    set_led_state(BLUE);
+}
+
 void set_darkness(){
     set_led_state(DARK);
 }
