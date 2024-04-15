@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include "esp_log.h"
 
-#define MAX_NAME_LENGTH 32
-#define MAX_SSID_LENGTH 32
-#define MAX_PASS_LENGTH 32
-#define MAX_API_KEY_LENGTH 32
+#define MAX_NAME_LENGTH 34
+#define MAX_SSID_LENGTH 34
+#define MAX_PASS_LENGTH 34
+#define MAX_API_KEY_LENGTH 34
 
 typedef struct BodilCustomer
 {
