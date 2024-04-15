@@ -1,6 +1,8 @@
 #ifndef BODIL_IOT_H
 #define BODIL_IOT_H
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
@@ -15,12 +17,19 @@
 #include "machine_control.h"
 #include "customer_info.h"
 #include "non_volatile_memory.h"
+#include "nvs_dotenv.h"
 
 enum NetworkModuleUsed{
     WIFI,
     GSM,
     DEACTIVATED
 };
+
+typedef struct PeriodicRequestArgs {
+    const char *service_url;
+    const char *api_header;
+    const char *api_key;
+} PeriodicRequestArgs;
 
 void periodic_heatpump_state_check_task(void *);
 
