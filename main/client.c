@@ -1,11 +1,6 @@
 #define INTERNAL_CLIENT
 #include "client.h"
 
-const char* api_header_name = getenv("API_HEADER_NAME");
-const char* api_key = getenv("API_KEY");
-const char* service_url = getenv("SERVICE_URL");
-
-
 char * truncate_event_data(char *data) {
     if (strlen(data) > RESPONSE_DATA_SIZE) {
         // Truncate to the pre defined size of the tokens
@@ -34,7 +29,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
 }
 
 //TODO: find a way to pass the customer object to compose the request and the api key
-void get_heatpump_set_state()//const BodilCustomer *customer)
+void get_heatpump_set_state(const char * service_url, const char * api_header, const char * api_key)//const BodilCustomer *customer)
 {
     esp_http_client_config_t config_get = {
         .url = service_url,
@@ -43,7 +38,7 @@ void get_heatpump_set_state()//const BodilCustomer *customer)
         .event_handler = client_handler};
 
     esp_http_client_handle_t client = esp_http_client_init(&config_get);
-    esp_http_client_set_header(client, api_header_name, api_key);
+    esp_http_client_set_header(client, api_header, api_key);
     esp_err_t err = esp_http_client_perform(client);
     if (err != ESP_OK) {
         ESP_LOGE("HTTP CLIENT PERFORM","HTTP request failed: %d\n", err);
