@@ -7,7 +7,7 @@ enum NetworkModuleUsed netif_connected_module = DEACTIVATED;
 extern int retry_conn_num;
 
 //TODO: use this variable to control the process and suspend when we are disconnected from the network and resume when reconnected
-TaskHandle_t requestHandle;
+TaskHandle_t requestHandle = NULL;
 
 void periodic_heatpump_state_check_task(void *args)
 {
@@ -49,7 +49,7 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
     return args;
 }
 
-//TODO: maybe add a BLUETOOTH option to the module type to identify it and destroy the BLE object when a connection is established
+//TODO: add a BLUETOOTH option to the module type to identify it and destroy the BLE object when a connection is established
 void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type)
 {
     // WIFI interface initialization
@@ -77,6 +77,9 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
 void connection_status_handler(char * ble_name){
     if(netif_connected_module == DEACTIVATED){
         initialize_bluetooth_service(ble_name);
+        if (requestHandle != NULL){
+            vTaskSuspend(requestHandle);
+        }
     }
     return;
 }
@@ -122,9 +125,7 @@ void app_main(void)
 
     handle_netif_mode(&customer_info, &netif_connected_module);
 
-    if(netif_connected_module == DEACTIVATED){
-        initialize_bluetooth_service(BLE_DEVICE_NAME);
-    }
+    connection_status_handler(BLE_DEVICE_NAME);
 
     //TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 
@@ -139,8 +140,8 @@ void app_main(void)
     while (1)
     {
         // just do whatever in the main thread loop for now
-        ESP_LOGI("MAIN THREAD", "5 minutes passed in the main thread \n");
         vTaskDelay(300000 / portTICK_PERIOD_MS);
+        ESP_LOGI("MAIN THREAD", "5 minutes passed in the main thread \n");
         //TODO: put here the connection check
         connection_status_handler(BLE_DEVICE_NAME);
         // ------------------------------------------------------------------------------------------------
