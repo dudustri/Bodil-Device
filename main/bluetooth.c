@@ -17,6 +17,8 @@ uint8_t ble_address_type;
 // Mutex for synchronizing access to the cached_device_info_buffer
 SemaphoreHandle_t buffer_mutex;
 
+//TODO: add a destroy function which will free all allocated memory from the ble service as well as delete the object itself
+
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
 
@@ -85,6 +87,7 @@ int ble_set_customer_info(const int key, const char *value, BodilCustomer *custo
 --------------------- Bluetooth Low Energy -------------------------*/
 
 static int uuid_check(uint16_t uuid) {
+    ESP_LOGI("UUID CHECK FUNCTION", "%d", uuid);
     switch (uuid) {
         case GATT_WRITE_NAME_SERVICE_UUID:
             return NAME;
@@ -100,6 +103,7 @@ static int uuid_check(uint16_t uuid) {
 // Read data from ESP32 defined as server
 static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
+    ESP_LOGI("DEVICE READ SERVICE", "%d, %d", con_handle, attr_handle);
     if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
     {
         ESP_LOGI("READ GATT SERVICE", "Read requested by a bluetooth connection!");
@@ -113,6 +117,11 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     char *data = NULL;
+    if (arg == NULL){
+        ESP_LOGE("WRITE GATT SERVICE", "NULL pointer argument passed unabling to recognize the service UUID\n");
+        return 1;
+    }
+    ESP_LOGI("DEVICE WRITE HANDLER", "%d", (int)arg);
     uint16_t uuid = *((uint16_t *)arg);
 
     if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
@@ -148,6 +157,7 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     return 0;
 }
 
+//TODO: find a way to free these pointers after the bluetooth service is destroyed
 // Service configs
 // UUID - Universal Unique Identifier
 static const struct ble_gatt_svc_def gatt_svcs[] = {
@@ -160,15 +170,15 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_NAME_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
           .access_cb = device_write_handler,
-          .arg = (void *)GATT_WRITE_NAME_SERVICE_UUID},
+          .arg = GATT_WRITE_NAME_SERVICE_UUID},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_SSID_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
           .access_cb = device_write_handler,
-          .arg = (void *)GATT_WRITE_SSID_SERVICE_UUID},
+          .arg = GATT_WRITE_SSID_SERVICE_UUID},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_PASS_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
           .access_cb = device_write_handler,
-          .arg = (void *)GATT_WRITE_PASS_SERVICE_UUID},
+          .arg = GATT_WRITE_PASS_SERVICE_UUID},
          {0}}},
     {0}};
 
@@ -277,6 +287,7 @@ void ble_task(void *param)
 
 int initialize_bluetooth_service(char *BLE_device_name)
 {
+
     nimble_port_init();
     ble_svc_gap_device_name_set(BLE_device_name); // set the service name to be read inside the advertisement function
     ble_svc_gap_init();                           // initialize NimBLE configuration - gap service
