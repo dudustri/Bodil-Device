@@ -158,6 +158,7 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
 }
 
 //TODO: find a way to free these pointers after the bluetooth service is destroyed
+//TODO: test if the args are being passed to the callback handler
 // Service configs
 // UUID - Universal Unique Identifier
 static const struct ble_gatt_svc_def gatt_svcs[] = {
