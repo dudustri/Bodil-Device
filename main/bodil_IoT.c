@@ -3,12 +3,13 @@
 #define BLE_DEVICE_NAME "BodilBox"
 
 enum NetworkModuleUsed netif_connected_module = DEACTIVATED;
+bool blutooth_active = false;
 
 extern int retry_conn_num;
 
-//TODO: use this variable to control the process and suspend when we are disconnected from the network and resume when reconnected
-TaskHandle_t requestHandle = NULL;
+TaskHandle_t requestHandler = NULL;
 
+//TODO: Change this method to also consider the connection via NB-IoT network with the gsm module.
 void periodic_heatpump_state_check_task(void *args)
 {
     //retrieve the arguments and cast it to the right structure
@@ -24,9 +25,9 @@ void periodic_heatpump_state_check_task(void *args)
             get_heatpump_set_state(request_info->service_url, request_info->api_header, request_info->api_key);
             change_led_to_blue_color();
             vTaskDelay(1000 / portTICK_PERIOD_MS);
-            // Wait for 15 seconds before making the next request
+            // Wait for 30 seconds before making the next request
             set_darkness();
-            vTaskDelay(14000 / portTICK_PERIOD_MS);
+            vTaskDelay(30000 / portTICK_PERIOD_MS);
         }
         else
         {
@@ -53,7 +54,6 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
 void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type)
 {
     // WIFI interface initialization
-
     if ( is_credentials_set(customer) && wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
     {
         ESP_LOGI("Netif Mode Handler", "Automatic connection established with the Wi-Fi module in station mode!");
@@ -75,10 +75,16 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
 // change the connection type to DEACTIVATED if one of the modules initially connected doesn't work for certain time
 // similar to an timeout. Then it turns on the  bluetooth stack and log the problem.
 void connection_status_handler(char * ble_name){
-    if(netif_connected_module == DEACTIVATED){
+    if(netif_connected_module == DEACTIVATED && !blutooth_active){
         initialize_bluetooth_service(ble_name);
-        if (requestHandle != NULL){
-            vTaskSuspend(requestHandle);
+        if (requestHandler != NULL){
+            vTaskSuspend(requestHandler);
+        }
+    }
+    else if(netif_connected_module != DEACTIVATED && blutooth_active){
+        stop_bluetooth_service();
+        if (requestHandler != NULL){
+            vTaskResume(requestHandler);
         }
     }
     return;
@@ -86,6 +92,9 @@ void connection_status_handler(char * ble_name){
 
 void app_main(void)
 {
+/*  _____________________________________________________
+    --------------Initialization procedure:--------------
+    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
     esp_err_t ret;
 
     ESP_ERROR_CHECK(nvs_dotenv_load());
@@ -107,9 +116,10 @@ void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     init_customer_info(&customer_info);
-    clear_blob_nvs("storage", "customer");
     load_from_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));
-    print_customer_info(&customer_info);
+    
+    // TODO: Remove this from the init routine in production code
+    clear_blob_nvs("storage", "customer");
 
     // If deviceid is zero then the device shoud be reseted to the default values
     if (customer_info.deviceid == 0)
@@ -123,27 +133,32 @@ void app_main(void)
     heat_pump_state_init();
     machine_control_init();
 
-    handle_netif_mode(&customer_info, &netif_connected_module);
-
-    connection_status_handler(BLE_DEVICE_NAME);
-
     //TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 
-    // Create a periodic task that calls get_heatpump_set_state every 15 seconds
+    // Creates a periodic task that calls get_heatpump_set_state every 15 seconds
     PeriodicRequestArgs *args = prepare_task_args(service_url, api_header_name, customer_info.api_key);
     if (args != NULL) {
-        xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, args, 3, &requestHandle);
+        xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, args, 3, &requestHandler);
     } else{
         ESP_LOGE("MAIN THREAD - Periodic Requests Task", "failed to initialize the arguments struct\n");
     }
 
+    handle_netif_mode(&customer_info, &netif_connected_module);
+    connection_status_handler(BLE_DEVICE_NAME);
+
+/*  _____________________________________________________
+    ----- core loop keeping the main thread running -----
+    ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
     while (1)
     {
         // just do whatever in the main thread loop for now
         vTaskDelay(300000 / portTICK_PERIOD_MS);
         ESP_LOGI("MAIN THREAD", "5 minutes passed in the main thread \n");
-        //TODO: put here the connection check
-        connection_status_handler(BLE_DEVICE_NAME);
+        /* TODO:
+        - There is a error here when bluetooth is active and netif doesnt have a connection
+        - Also the wifi is not being stopped during the process after try the maximum amount of times :E (23721) wifi_init: Wi-Fi not stop */
+        // handle_netif_mode(&customer_info, &netif_connected_module);
+        // connection_status_handler(BLE_DEVICE_NAME);
         // ------------------------------------------------------------------------------------------------
         // energy saving mode to use in the future
         // esp_deep_sleep(5 * 60 * 1000000);  // Sleep for 5 minutes in microseconds

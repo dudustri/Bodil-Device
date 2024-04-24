@@ -17,8 +17,6 @@ uint8_t ble_address_type;
 // Mutex for synchronizing access to the cached_device_info_buffer
 SemaphoreHandle_t buffer_mutex;
 
-//TODO: add a destroy function which will free all allocated memory from the ble service as well as delete the object itself
-
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
 
@@ -157,8 +155,11 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     return 0;
 }
 
-//TODO: find a way to free these pointers after the bluetooth service is destroyed
-//TODO: test if the args are being passed to the callback handler
+/*TODO: 
+ - test if the args are being passed to the callback handler (it is not)
+ - discover how to manage the void pointer to be passed to the callback function (create smart pointer?)
+    -> if new memory allocation needed - find a way to free these pointers after the bluetooth service is destroyed*/
+
 // Service configs
 // UUID - Universal Unique Identifier
 static const struct ble_gatt_svc_def gatt_svcs[] = {
@@ -283,12 +284,13 @@ void ble_start_on_sync(void)
 // main ble process
 void ble_task(void *param)
 {
-    nimble_port_run(); // returns only when nimble_port_stop() is executed
+    nimble_port_run(); // go to the next line only when nimble_port_stop() is executed
+    nimble_port_freertos_deinit(); // release the task resources
 }
 
 int initialize_bluetooth_service(char *BLE_device_name)
 {
-
+    ESP_LOGI("BLE Service Init", "Initializing bluetooth advertisement service!");
     nimble_port_init();
     ble_svc_gap_device_name_set(BLE_device_name); // set the service name to be read inside the advertisement function
     ble_svc_gap_init();                           // initialize NimBLE configuration - gap service
@@ -299,4 +301,15 @@ int initialize_bluetooth_service(char *BLE_device_name)
     nimble_port_freertos_init(ble_task);          // initialize the ble task as a process in a separated thread in the OS
 
     return 0;
+}
+
+int stop_bluetooth_service(){
+    int ret = nimble_port_stop();
+    if (ret == 0) {
+        ret = nimble_port_deinit();
+    }
+    if (ret == 0) {
+    ESP_LOGI("BLE Service Deinit", "Bluetooth service stopped!");
+    }
+    return ret;
 }

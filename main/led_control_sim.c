@@ -1,6 +1,10 @@
 
 #include "led_control_sim.h"
 
+/* TODO: 
+ - use this function in a smarter way to deliver info about the network, communication, normal operation and issues.
+ - remove the change_led_to... functions because it is completely dumb. Use set led state instead directly ¬¬
+*/
 enum LedState led_state = DARK;
 
 void led_init(void)

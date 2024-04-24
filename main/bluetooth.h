@@ -11,6 +11,7 @@ enum ConfigKey
 
 // Public Function Declarations
 int initialize_bluetooth_service(char *);
+int stop_bluetooth_service(void);
 
     #ifdef INTERNAL_BLUETOOTH
 
@@ -18,9 +19,6 @@ int initialize_bluetooth_service(char *);
     #include <stdio.h>
     #include <stdlib.h>
     #include <string.h>
-    #include <regex.h>
-    #include "sdkconfig.h"
-    #include "esp_nimble_hci.h"
     #include "nimble/nimble_port.h"
     #include "nimble/nimble_port_freertos.h"
     #include "host/ble_hs.h"

@@ -37,6 +37,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     }
 }
 
+//TODO: test this guy if it is working properly since it is not stoping the netif wifi module in a normal procedure (check documentation)
 esp_err_t destroy_wifi_module(esp_netif_t *esp_netif)
 {
     esp_err_t deinit_wifi_status = esp_wifi_deinit();
@@ -44,6 +45,7 @@ esp_err_t destroy_wifi_module(esp_netif_t *esp_netif)
     return deinit_wifi_status;
 }
 
+//TODO: Make this better for god sake
 esp_err_t wifi_connection_init()
 {
     esp_err_t init_check = ESP_OK;
@@ -144,7 +146,11 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
         vTaskDelay(1200 * retry_conn_num / portTICK_PERIOD_MS);
     } while (wifi_check != ESP_OK && retry_conn_num < 5);
 
-    return wifi_check == ESP_OK ? ESP_OK : destroy_wifi_module(netif_pointer) == ESP_OK ? ESP_FAIL
+    /*TODO: 
+    - this line is messy - change this to make more clear and also test the destroy - it needs to work properly
+    - maybe print the pointer to see if it is being allocated properly. Check if there is some deinit functions for the wifi module.
+    */
+    return wifi_check ? ESP_OK : destroy_wifi_module(netif_pointer) == ESP_OK ? ESP_FAIL
                                                                                         : ESP_ERR_WIFI_NOT_INIT;
 }
 
