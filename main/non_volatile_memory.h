@@ -4,8 +4,8 @@
 #include "nvs_flash.h"
 #include "esp_log.h"
 
-void clear_blob_nvs(const char *, const char *);
-void save_to_nvs(const char *, const char *, const void *, size_t);
-void load_from_nvs(const char *, const char *, void *, size_t);
+int clear_blob_nvs(const char *, const char *);
+int save_to_nvs(const char *, const char *, const void *, size_t);
+int load_from_nvs(const char *, const char *, void *, size_t);
 
 #endif
