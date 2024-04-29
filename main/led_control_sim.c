@@ -3,7 +3,6 @@
 
 /* TODO: 
  - use this function in a smarter way to deliver info about the network, communication, normal operation and issues.
- - remove the change_led_to... functions because it is completely dumb. Use set led state instead directly ¬¬
 */
 enum LedState led_state = DARK;
 
@@ -44,20 +43,4 @@ void change_to_next_color(enum LedState current_state)
         led_state = ALL;
     }
     set_led_state(led_state);
-}
-
-void change_led_to_red_color(){
-    set_led_state(RED);
-}
-
-void change_led_to_green_color(){
-    set_led_state(GREEN);
-}
-
-void change_led_to_blue_color(){
-    set_led_state(BLUE);
-}
-
-void set_darkness(){
-    set_led_state(DARK);
 }

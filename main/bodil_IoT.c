@@ -23,18 +23,18 @@ void periodic_heatpump_state_check_task(void *args)
         if (wifi_status == ESP_OK)
         {
             get_heatpump_set_state(request_info->service_url, request_info->api_header, request_info->api_key);
-            change_led_to_blue_color();
+            set_led_state(BLUE);
             vTaskDelay(1000 / portTICK_PERIOD_MS);
             // Wait for 30 seconds before making the next request
-            set_darkness();
+            set_led_state(DARK);
             vTaskDelay(30000 / portTICK_PERIOD_MS);
         }
         else
         {
             ESP_LOGI("WIFI CONNECTION", "Not connected to WiFi. Waiting 5 seconds to execute a new request...\n");
-            change_led_to_red_color();
+            set_led_state(RED);
             vTaskDelay(5000 / portTICK_PERIOD_MS);
-            set_darkness();
+            set_led_state(DARK);
             continue;
         }
     }
@@ -124,6 +124,7 @@ void app_main(void)
     // If deviceid is zero then the device shoud be reseted to the default values
     if (customer_info.deviceid == 0)
     {
+        ESP_LOGI("MAIN THREAD", "Customer initialized with the default data.\n");
         set_customer_info(&customer_info, "bodil_dev", 1, default_ssid, default_pass, api_key);
         print_customer_info(&customer_info);
         save_to_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));

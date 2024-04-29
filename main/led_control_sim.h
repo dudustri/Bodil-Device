@@ -24,9 +24,5 @@ extern enum LedState led_state;
 void led_init(void);
 void set_led_state(enum LedState);
 void change_to_next_color(enum LedState);
-void change_led_to_red_color(void);
-void change_led_to_blue_color(void);
-void change_led_to_green_color(void);
-void set_darkness(void);
 
 #endif

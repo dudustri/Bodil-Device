@@ -24,7 +24,7 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     default:
         break;
     }
-    change_led_to_green_color();
+    set_led_state(GREEN);
     return ESP_OK;
 }
 
@@ -42,7 +42,7 @@ void get_heatpump_set_state(const char * service_url, const char * api_header, c
     esp_err_t err = esp_http_client_perform(client);
     if (err != ESP_OK) {
         ESP_LOGE("HTTP CLIENT PERFORM","HTTP request failed: %d\n", err);
-        change_led_to_red_color();
+        set_led_state(RED);
     }
     esp_http_client_cleanup(client);
 }
