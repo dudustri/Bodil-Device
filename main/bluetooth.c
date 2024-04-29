@@ -161,6 +161,9 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     -> if new memory allocation needed - find a way to free these pointers after the bluetooth service is destroyed*/
 
 // Service configs
+uint16_t name_callback_argument = GATT_WRITE_NAME_SERVICE_UUID;
+uint16_t ssid_callback_argument = GATT_WRITE_SSID_SERVICE_UUID;
+uint16_t pass_callback_argument = GATT_WRITE_PASS_SERVICE_UUID;
 // UUID - Universal Unique Identifier
 static const struct ble_gatt_svc_def gatt_svcs[] = {
     {.type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -172,15 +175,15 @@ static const struct ble_gatt_svc_def gatt_svcs[] = {
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_NAME_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
           .access_cb = device_write_handler,
-          .arg = GATT_WRITE_NAME_SERVICE_UUID},
+          .arg = &name_callback_argument},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_SSID_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
           .access_cb = device_write_handler,
-          .arg = GATT_WRITE_SSID_SERVICE_UUID},
+          .arg = &ssid_callback_argument},
          {.uuid = BLE_UUID16_DECLARE(GATT_WRITE_PASS_SERVICE_UUID),
           .flags = BLE_GATT_CHR_F_WRITE,
           .access_cb = device_write_handler,
-          .arg = GATT_WRITE_PASS_SERVICE_UUID},
+          .arg = &pass_callback_argument},
          {0}}},
     {0}};
 
