@@ -4,6 +4,7 @@
 // connection retry state
 int retry_conn_num = 0;
 esp_netif_t *netif_pointer = NULL;
+bool status_connected = false;
 
 // handler for the wifi events loop
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
@@ -12,9 +13,12 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     {
     case WIFI_EVENT_STA_START:
         ESP_LOGI("WIFI EVENT", "Starting the WiFi connection, wait...\n");
+        status_connected = false;
+        retry_conn_num = 0;
         break;
     case WIFI_EVENT_STA_CONNECTED:
         ESP_LOGI("WIFI EVENT", "Connected!\n");
+        status_connected = true;
         retry_conn_num = 0;
         break;
     case WIFI_EVENT_STA_DISCONNECTED:
@@ -40,27 +44,34 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
 // TODO: test this guy if it is working properly since it is not stoping the netif wifi module in a normal procedure (check documentation)
 esp_err_t destroy_wifi_module(esp_netif_t *esp_netif)
 {
-    esp_err_t clean_wifi_status = esp_wifi_disconnect();
-    if (clean_wifi_status != ESP_OK)
+    esp_err_t stop_wifi_status = esp_wifi_disconnect();
+    ESP_LOGW("Destroy Wi-Fi Module", "Destroying the Wi-Fi component >.<");
+    if (stop_wifi_status != ESP_OK)
     {
         ESP_LOGE("Destroy Wi-Fi Module", "An error occured when disconnecting from Wi-Fi");
-        return clean_wifi_status;
+        return stop_wifi_status;
     }
 
-    clean_wifi_status = esp_wifi_stop();
-    if (clean_wifi_status != ESP_OK)
+    stop_wifi_status = esp_wifi_stop();
+    if (stop_wifi_status != ESP_OK)
     {
         ESP_LOGE("Destroy Wi-Fi Module", "An error occured while trying to stop Wi-Fi module");
-        return clean_wifi_status;
+        return stop_wifi_status;
     }
-    clean_wifi_status = esp_wifi_deinit();
-    if (clean_wifi_status != ESP_OK)
+    stop_wifi_status = esp_wifi_deinit();
+    if (stop_wifi_status != ESP_OK)
     {
         ESP_LOGE("Destroy Wi-Fi Module", "An error occured while deinitializing the Wi-Fi module");
-        return clean_wifi_status;
+        return stop_wifi_status;
+    }
+    stop_wifi_status = esp_event_loop_delete_default();
+    if (stop_wifi_status != ESP_OK)
+    {
+        ESP_LOGE("Destroy Wi-Fi Module", "An error occured while deleting the event_loop.");
+        return stop_wifi_status;
     }
     esp_netif_destroy_default_wifi(esp_netif);
-    return clean_wifi_status;
+    return stop_wifi_status;
 }
 
 // TODO: Make this better for god sake
@@ -126,7 +137,7 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
     wifi_check = wifi_connection_init();
     if (wifi_check != ESP_OK)
     {
-        ESP_LOGE("WIFI Start", "Error initializiing module WiFi... \n");
+        ESP_LOGE("WIFI Start", "Error initializing module WiFi... \n");
         return wifi_check;
     }
 
@@ -158,11 +169,14 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
         return wifi_check;
     }
 
+    int conn_stats_num = 0;
     do
     {
+        ESP_LOGI("WIFI Connection STATUS:", "Inspecting the connection status -> Retries (%d)", conn_stats_num);
+        vTaskDelay(300 * conn_stats_num / portTICK_PERIOD_MS);
         wifi_check = wifi_connection_get_status();
-        vTaskDelay(1200 * retry_conn_num / portTICK_PERIOD_MS);
-    } while (wifi_check != ESP_OK && retry_conn_num < 5);
+        conn_stats_num++;
+    } while (wifi_check != ESP_OK && conn_stats_num <= 3);
 
     /*TODO:
     - this line is messy - change this to make more clear and also test the destroy - it needs to work properly
@@ -172,24 +186,36 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
                                                                                         : ESP_ERR_WIFI_NOT_INIT;
 }
 
+// TODO: check this function since it is the one calling esp_wifi_sta_get_ap_info that is spamming the log!
+// It should be called only if a connection is stabilished with an AP.
 esp_err_t wifi_connection_get_status()
 {
     wifi_ap_record_t ap_info;
+
+    if (!status_connected)
+    {
+        ESP_LOGW("Wifi connection Status:", "No STA Connect event reaches the handler so far...");
+        return ESP_ERR_WIFI_NOT_CONNECT;
+    }
+
     int wifi_status = esp_wifi_sta_get_ap_info(&ap_info);
 
     if (wifi_status == ESP_OK)
     {
         if (ap_info.rssi >= -80)
         {
+            ESP_LOGI("Wifi Connection Status:", "Good connection and strenght of the signal!");
             return ESP_OK; // Connected and good signal strength -> bigger than -80 dBm
         }
         else
         {
+            ESP_LOGW("Wifi Connection Status:", "The strenght of the signal is too low!");
             return ESP_ERR_WIFI_NOT_CONNECT; // Signal strength below threshold
         }
     }
     else
     {
+        ESP_LOGE("Wifi Connection Status:", "Error fetching the wifi sta ap info data!");
         return ESP_ERR_WIFI_NOT_CONNECT; // Not connected to WiFi
     }
 }

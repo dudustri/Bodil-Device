@@ -84,17 +84,19 @@ int ble_set_customer_info(const int key, const char *value, BodilCustomer *custo
 /* ----------------------------------------------------------------
 --------------------- Bluetooth Low Energy -------------------------*/
 
-static int uuid_check(uint16_t uuid) {
+static int uuid_check(uint16_t uuid)
+{
     ESP_LOGI("UUID CHECK FUNCTION", "%d", uuid);
-    switch (uuid) {
-        case GATT_WRITE_NAME_SERVICE_UUID:
-            return NAME;
-        case GATT_WRITE_SSID_SERVICE_UUID:
-            return SSID;
-        case GATT_WRITE_PASS_SERVICE_UUID:
-            return PASSWORD;
-        default:
-            return UNKNOWN;
+    switch (uuid)
+    {
+    case GATT_WRITE_NAME_SERVICE_UUID:
+        return NAME;
+    case GATT_WRITE_SSID_SERVICE_UUID:
+        return SSID;
+    case GATT_WRITE_PASS_SERVICE_UUID:
+        return PASSWORD;
+    default:
+        return UNKNOWN;
     }
 }
 
@@ -115,7 +117,8 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     char *data = NULL;
-    if (arg == NULL){
+    if (arg == NULL)
+    {
         ESP_LOGE("WRITE GATT SERVICE", "NULL pointer argument passed unabling to recognize the service UUID\n");
         return 1;
     }
@@ -154,11 +157,6 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     }
     return 0;
 }
-
-/*TODO: 
- - test if the args are being passed to the callback handler (it is not)
- - discover how to manage the void pointer to be passed to the callback function (create smart pointer?)
-    -> if new memory allocation needed - find a way to free these pointers after the bluetooth service is destroyed*/
 
 // Service configs
 uint16_t name_callback_argument = GATT_WRITE_NAME_SERVICE_UUID;
@@ -221,7 +219,7 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg)
     return 0;
 }
 
-// TODO: 
+// TODO:
 // Implement ble module activation when there is no netif network connection and review the advertisement interval
 // Add also the deactivation when the device is already connected to the network by wifi or gsm.
 void ble_advertisement(void)
@@ -241,9 +239,8 @@ void ble_advertisement(void)
 
     //  Set the manufacturer data
     static const uint8_t manufacturer_data[MANUFACTURER_DATA_SIZE] = {
-    'B', 'o', 'd', 'i', 'l', ' ', 'E', 'n', 'e', 'r', 'g', 'y', ' ', 'A', 'p', 'S'
-    };
-    fields.mfg_data =  manufacturer_data;
+        'B', 'o', 'd', 'i', 'l', ' ', 'E', 'n', 'e', 'r', 'g', 'y', ' ', 'A', 'p', 'S'};
+    fields.mfg_data = manufacturer_data;
     fields.mfg_data_len = MANUFACTURER_DATA_SIZE;
 
     rc = ble_gap_adv_set_fields(&fields);
@@ -287,32 +284,63 @@ void ble_start_on_sync(void)
 // main ble process
 void ble_task(void *param)
 {
-    nimble_port_run(); // go to the next line only when nimble_port_stop() is executed
+    nimble_port_run();             // go to the next line only when nimble_port_stop() is executed
     nimble_port_freertos_deinit(); // release the task resources
 }
 
 int initialize_bluetooth_service(char *BLE_device_name)
 {
     ESP_LOGI("BLE Service Init", "Initializing bluetooth advertisement service!");
-    nimble_port_init();
-    ble_svc_gap_device_name_set(BLE_device_name); // set the service name to be read inside the advertisement function
-    ble_svc_gap_init();                           // initialize NimBLE configuration - gap service
-    ble_svc_gatt_init();                          // ~~ gatt service
-    ble_gatts_count_cfg(gatt_svcs);               // ~~ config gatt services
-    ble_gatts_add_svcs(gatt_svcs);                // ~~ queues gatt services.
-    ble_hs_cfg.sync_cb = ble_start_on_sync;       // ble application initialization
-    nimble_port_freertos_init(ble_task);          // initialize the ble task as a process in a separated thread in the OS
+    int ret;
+    ret = nimble_port_init();
+    if (ret != 0)
+    {
+        ESP_LOGE("BLE Service Init", "Error initializing nimble port!");
+        return ret;
+    }
+    // set the service name to be read inside the advertisement function
+    ret = ble_svc_gap_device_name_set(BLE_device_name);
+    if (ret != 0)
+    {
+        ESP_LOGE("BLE Service Init", "Error setting the service name...");
+        return ret;
+    }
+    // initialize NimBLE configuration - gap service
+    ble_svc_gap_init();
+    // ~~ gatt service
+    ble_svc_gatt_init();
+    // ~~ config gatt services
+    ret = ble_gatts_count_cfg(gatt_svcs);
+    if (ret != 0)
+    {
+        ESP_LOGE("BLE Service Init", "Error adjusting the GATT configuration object to accommodate the service definition...");
+        return ret;
+    }
+    // ~~ queues gatt services.
+    ret = ble_gatts_add_svcs(gatt_svcs);
+    if (ret != 0)
+    {
+        ESP_LOGE("BLE Service Init", "Error queueing the service definitions for registration...");
+        return ret;
+    }
+    // ble application initialization
+    ble_hs_cfg.sync_cb = ble_start_on_sync;
+    // initialize the ble task as a process in a separated thread in the OS
+    nimble_port_freertos_init(ble_task);
 
-    return 0;
+    return ret;
 }
 
-int stop_bluetooth_service(){
+int stop_bluetooth_service()
+{
     int ret = nimble_port_stop();
-    if (ret == 0) {
+    if (ret == 0)
+    {
         ret = nimble_port_deinit();
     }
-    if (ret == 0) {
-    ESP_LOGI("BLE Service Deinit", "Bluetooth service stopped!");
+    if (ret == 0)
+    {
+        ESP_LOGI("BLE Service Deinit", "Bluetooth service stopped!");
     }
     return ret;
 }
