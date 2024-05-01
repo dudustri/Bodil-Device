@@ -42,41 +42,54 @@ const esp_modem_dce_config_t dce_config = {
 
 const esp_netif_t *netif = NULL;
 
-int set_pin(esp_modem_dce_t *dce, const char *pin)
+esp_err_t set_pin(esp_modem_dce_t *dce, const char *pin)
 {
-
+    esp_err_t ret;
     bool status_pin = false;
-    if (esp_modem_read_pin(dce, &status_pin) == ESP_OK && status_pin == false)
+    ret = esp_modem_read_pin(dce, &status_pin);
+    if (ret == ESP_OK && status_pin == false)
     {
-        if (esp_modem_set_pin(dce, pin) == ESP_OK)
+        ret = esp_modem_set_pin(dce, pin);
+        if (ret == ESP_OK)
         {
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
         else
         {
             ESP_LOGE("SET PIN GSM MODULE", "Failed to set pin in the gsm module.");
-            return 1;
+            return ret;
         }
     }
-    return 0;
+    return ESP_OK;
 }
 
-void destroy_gsm_module(esp_modem_dce_t *dce, esp_netif_t *esp_netif)
+esp_err_t destroy_gsm_module(esp_modem_dce_t *dce, esp_netif_t *esp_netif)
 {
+    esp_err_t stop_gsm_status;
+
+    ESP_LOGW("Destroy GSM Module", "Destroying the GSM component u.u");
     esp_modem_destroy(dce);
+    stop_gsm_status = esp_event_loop_delete_default();
+    if (stop_gsm_status != ESP_OK)
+    {
+        ESP_LOGE("Destroy GSM Module", "An error occured while deleting the event_loop.");
+        return stop_gsm_status;
+    }
     esp_netif_destroy(esp_netif);
+    return stop_gsm_status;
 }
 
-void check_signal_quality(esp_modem_dce_t *dce)
+esp_err_t check_signal_quality(esp_modem_dce_t *dce)
 {
     int rssi, ber;
-    esp_err_t err = esp_modem_get_signal_quality(dce, &rssi, &ber);
-    if (err != ESP_OK)
+    esp_err_t ret = esp_modem_get_signal_quality(dce, &rssi, &ber);
+    if (ret != ESP_OK)
     {
-        ESP_LOGE("GSM - SIGNAL QUALITY - ESP MODEM", "esp_modem_get_signal_quality failed with %d %s", err, esp_err_to_name(err));
-        return;
+        ESP_LOGE("GSM - SIGNAL QUALITY - ESP MODEM", "esp_modem_get_signal_quality failed with %d %s", ret, esp_err_to_name(ret));
+        return ret;
     }
     ESP_LOGI("GSM - SIGNAL QUALITY - ESP MODEM", "Signal quality: rssi=%d, ber=%d", rssi, ber);
+    return ret;
 }
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
@@ -132,28 +145,30 @@ esp_err_t start_gsm_module(void)
 
     esp_err_t ret_check;
 
+    ESP_LOGI("START GSM MODULE:", "Initializing the GSM module ...");
+
     ret_check = esp_netif_init(); // initiates network interface
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE("GSM - NETIF - Initialization", "netif init failed with %d", ret_check);
+        ESP_LOGE("START GSM MODULE - NETIF - Initialization", "netif init failed with %d", ret_check);
         return ret_check;
     }
     ret_check = esp_event_loop_create_default(); // dispatch events loop callback
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE("GSM - EVENT LOOP - Creation", "Event Loop creation failed with %d", ret_check);
+        ESP_LOGE("START GSM MODULE - EVENT LOOP - Creation", "Event Loop creation failed with %d", ret_check);
         return ret_check;
     }
     ret_check = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &on_ip_event, NULL);
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE("GSM - IP EVENT HANDLER - Register", "IP event handler registering failed with %d", ret_check);
+        ESP_LOGE("START GSM MODULE - IP EVENT HANDLER - Register", "IP event handler registering failed with %d", ret_check);
         return ret_check;
     }
     ret_check = esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE("GSM - PPP EVENT HANDLER - Register", "PPP event handler registering failed with %d", ret_check);
+        ESP_LOGE("START GSM MODULE - PPP EVENT HANDLER - Register", "Set Pin procedure failed with %d... Stopping GSM Module", ret_check);
         return ret_check;
     }
 
@@ -166,20 +181,43 @@ esp_err_t start_gsm_module(void)
     gsm_modem = esp_modem_new_dev(ESP_MODEM_DCE_SIM800, &dte_config, &dce_config, esp_netif);
 
     // check pin configuration
-    if (!set_pin(gsm_modem, CONFIG_APN_PIN))
+    ret_check = set_pin(gsm_modem, CONFIG_APN_PIN);
+    if (ret_check != ESP_OK)
     {
+        ESP_LOGE("START GSM MODULE - Set Pin - Check", "Not chipset or pin config was identified. Destroying GSM module...");
         destroy_gsm_module(gsm_modem, esp_netif);
         return ret_check;
     }
 
     // check signal quality
-    check_signal_quality(gsm_modem);
+    int retries = 0;
+    int signal_ok = false;
+    do
+    {
+        ret_check = check_signal_quality(gsm_modem);
+        if (ret_check != ESP_OK)
+        {
+            vTaskDelay(pdMS_TO_TICKS(700));
+            retries++;
+            if (retries <= 5)
+            {
+                ESP_LOGE("START GSM MODULE - Signal Quality Check", "No signal was identified. Destroying GSM module...");
+                destroy_gsm_module(gsm_modem, esp_netif);
+                return ret_check;
+            }
+            ESP_LOGW("START GSM MODULE - Signal Quality Check", "The signal quality check failed... Retrying (%d)", retries);
+        }
+        else
+        {
+            signal_ok = true;
+        }
+    } while (!signal_ok);
 
     // set the GSM module to data mode
     ret_check = esp_modem_set_mode(gsm_modem, ESP_MODEM_MODE_DATA);
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE("GSM - SET DATA MODE - ESP MODEM", "esp_modem_set_mode(ESP_MODEM_MODE_DATA) failed with %d", ret_check);
+        ESP_LOGE("START GSM MODULE - SET DATA MODE - ESP MODEM", "esp_modem_set_mode(ESP_MODEM_MODE_DATA) failed with %d", ret_check);
         destroy_gsm_module(gsm_modem, esp_netif);
         return ret_check;
     }
