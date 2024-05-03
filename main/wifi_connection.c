@@ -22,13 +22,20 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
         retry_conn_num = 0;
         break;
     case WIFI_EVENT_STA_DISCONNECTED:
-        ESP_LOGI("WIFI EVENT", "WiFi disconected\n");
-        if (retry_conn_num < 5)
-        {
-            retry_conn_num++;
-            ESP_LOGI("WIFI EVENT", "Retrying to connect... (%d)\n", retry_conn_num);
-            vTaskDelay(1000 * retry_conn_num / portTICK_PERIOD_MS);
-            esp_wifi_connect();
+        if(status_connected){
+            status_connected = false;
+            ESP_LOGI("WIFI EVENT", "WiFi disconected\n");
+            if (retry_conn_num < 5)
+            {
+                retry_conn_num++;
+                ESP_LOGI("WIFI EVENT", "Retrying to connect... (%d)\n", retry_conn_num);
+                vTaskDelay(1000 * retry_conn_num / portTICK_PERIOD_MS);
+                esp_wifi_connect();
+                esp_err_t wifi_check = wifi_connection_get_status();
+                if(wifi_check == ESP_OK) status_connected = true;
+                break;
+            }
+            set_network_disconnected(status_connected);
         }
         break;
     case IP_EVENT_STA_GOT_IP:
@@ -134,6 +141,8 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
     strcpy((char *)wifi_configuration.sta.ssid, ssid);
     strcpy((char *)wifi_configuration.sta.password, pass);
 
+    ESP_LOGI("Checking customer information", "ssid: %s, pass: %s - wifi sta ssid: %s, pass: %s", ssid, pass, wifi_configuration.sta.ssid, wifi_configuration.sta.password);
+
     wifi_check = wifi_connection_init();
     if (wifi_check != ESP_OK)
     {
@@ -173,7 +182,7 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
     do
     {
         ESP_LOGI("WIFI Connection STATUS:", "Inspecting the connection status -> Retries (%d)", conn_stats_num);
-        vTaskDelay(300 * conn_stats_num / portTICK_PERIOD_MS);
+        vTaskDelay(1500 * conn_stats_num / portTICK_PERIOD_MS);
         wifi_check = wifi_connection_get_status();
         conn_stats_num++;
     } while (wifi_check != ESP_OK && conn_stats_num <= 3);

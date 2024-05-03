@@ -9,6 +9,11 @@ extern int retry_conn_num;
 
 TaskHandle_t requestHandler = NULL;
 
+void set_network_disconnected(bool conn){
+    if(!conn) netif_connected_module = DEACTIVATED;
+    return;
+}
+
 // TODO: Change this method to also consider the connection via NB-IoT network with the gsm module.
 void periodic_heatpump_state_check_task(void *args)
 {
@@ -57,6 +62,7 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
 {
     if (*module_type == DEACTIVATED)
     {
+        ESP_LOGI("Checking customer information", "ssid: %s, pass: %s", customer_info.ssid, customer_info.pass);
         // WIFI interface initialization
         if (is_credentials_set(customer) && wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
         {
@@ -89,6 +95,7 @@ void connection_status_handler(char *ble_name, bool *ble_active)
             {
                 ESP_LOGW("Connection Status Handler", "Server request thread suspended.");
                 vTaskSuspend(requestHandler);
+                return;
             }
         }
     }
@@ -101,11 +108,16 @@ void connection_status_handler(char *ble_name, bool *ble_active)
             {
                 ESP_LOGI("Netif Mode Handler", "Server request thread resumed!");
                 vTaskResume(requestHandler);
+                return;
             }
+            //TODO: add a routine here to try to create a new task to make the requests.
+            ESP_LOGW("Netif Mode Handler", "Unexpected behaviour! No request task was created in the background!");
+            return;
         }
         else
         {
             ESP_LOGE("Netif Mode Handler", "An error happened when stopping the BLE service...");
+            return;
         }
     }
     ESP_LOGI("Netif Mode Handler", "The connection status did not change. Keep running the BLE service...");
@@ -173,9 +185,6 @@ void app_main(void)
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
     while (1)
     {
-        /* TODO:
-        - There is a error here when bluetooth is active and netif doesnt have a connection
-        - Also the wifi is not being stopped during the process after try the maximum amount of times :E (23721) wifi_init: Wi-Fi not stop */
         handle_netif_mode(&customer_info, &netif_connected_module);
         connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
 
