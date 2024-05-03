@@ -17,6 +17,7 @@ esp_err_t destroy_wifi_module(esp_netif_t *);
     #include "lwip/err.h"
     #include "lwip/sys.h"
     #include "lwip/ip4_addr.h"
+    #include "bodil_IoT.h"
 
     // Private functions
     esp_err_t wifi_connection_init();
