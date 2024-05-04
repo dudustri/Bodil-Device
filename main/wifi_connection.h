@@ -22,6 +22,6 @@ esp_err_t destroy_wifi_module(esp_netif_t *);
     // Private functions
     esp_err_t wifi_connection_init();
 
-#endif
+    #endif
 
 #endif
