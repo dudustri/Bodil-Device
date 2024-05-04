@@ -1,3 +1,4 @@
+#define INTERNAL_BODIL_MAIN_MODULE
 #include "bodil_IoT.h"
 
 #define BLE_DEVICE_NAME "BodilBox"
@@ -9,8 +10,11 @@ extern int retry_conn_num;
 
 TaskHandle_t requestHandler = NULL;
 
-void set_network_disconnected(bool conn){
-    if(!conn) netif_connected_module = DEACTIVATED;
+void set_network_disconnected(bool conn)
+{
+    if (!conn) {
+        netif_connected_module = DEACTIVATED;
+        }
     return;
 }
 
@@ -110,7 +114,7 @@ void connection_status_handler(char *ble_name, bool *ble_active)
                 vTaskResume(requestHandler);
                 return;
             }
-            //TODO: add a routine here to try to create a new task to make the requests.
+            // TODO: add a routine here to try to create a new task to make the requests.
             ESP_LOGW("Netif Mode Handler", "Unexpected behaviour! No request task was created in the background!");
             return;
         }

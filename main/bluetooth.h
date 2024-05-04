@@ -12,7 +12,6 @@ enum ConfigKey
 // Public Function Declarations
 int initialize_bluetooth_service(char *);
 int stop_bluetooth_service(void);
-void set_network_disconnected(bool);
 
     #ifdef INTERNAL_BLUETOOTH
 
