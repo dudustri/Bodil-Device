@@ -18,12 +18,16 @@ int stop_bluetooth_service(void);
     //Bluetooth internal dependencies
     #include <stdio.h>
     #include <stdlib.h>
+    #include <stdbool.h>
     #include <string.h>
+    #include <math.h>
     #include "nimble/nimble_port.h"
     #include "nimble/nimble_port_freertos.h"
     #include "host/ble_hs.h"
     #include "services/gap/ble_svc_gap.h"
     #include "services/gatt/ble_svc_gatt.h"
+    #include "freertos/FreeRTOS.h"
+    #include "freertos/task.h"
     #include "esp_system.h"
     #include "esp_log.h"
     #include "esp_bt.h"

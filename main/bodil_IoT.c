@@ -21,6 +21,7 @@ void set_network_disconnected(bool conn)
 // TODO: Change this method to also consider the connection via NB-IoT network with the gsm module.
 void periodic_heatpump_state_check_task(void *args)
 {
+    UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
     // retrieve the arguments and cast it to the right structure
     PeriodicRequestArgs *request_info = (PeriodicRequestArgs *)args;
 
@@ -46,6 +47,8 @@ void periodic_heatpump_state_check_task(void *args)
             set_led_state(DARK);
             continue;
         }
+
+        ESP_LOGI("High water mark Periodic HP State Req", "%d", (int)uxHighWaterMark);
     }
 }
 
@@ -178,7 +181,7 @@ void app_main(void)
     PeriodicRequestArgs *args = prepare_task_args(service_url, api_header_name, customer_info.api_key);
     if (args != NULL)
     {
-        xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 4096, args, 3, &requestHandler);
+        xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 3200, args, 3, &requestHandler);
     }
     else
     {

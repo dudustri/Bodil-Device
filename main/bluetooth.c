@@ -10,9 +10,17 @@
 #define INFO_BUFFER_SIZE 210
 #define MANUFACTURER_DATA_SIZE 16
 #define QUEUE_TOKEN_SIZE 5
+#define BYTES_PER_BLE_PACKET 16 // Data bytes sent per BLE packet
 
 char *cached_device_info_buffer = NULL;
 uint8_t ble_address_type;
+
+// BLE Read Control Variables
+int info_size = 0;
+int ble_read_package_numbers = 0;
+int current_package_sent = 0;
+
+static bool device_read_execution = false;
 
 // Mutex for synchronizing access to the cached_device_info_buffer
 SemaphoreHandle_t buffer_mutex;
@@ -20,6 +28,7 @@ SemaphoreHandle_t buffer_mutex;
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
 
+// TODO: Change the buffer info to json format!
 void update_buffer(void)
 {
     if (strlen(customer_info.name) == 0 || strlen(customer_info.ssid) == 0 || strlen(customer_info.pass) == 0 || strlen(customer_info.api_key) == 0 || cached_device_info_buffer == NULL)
@@ -28,6 +37,9 @@ void update_buffer(void)
     }
     snprintf(cached_device_info_buffer, INFO_BUFFER_SIZE, "Device Information:\n Name: %s\n DeviceID: %d\n SSID: %s\n Password: %s\n API Key: %s\n",
              customer_info.name, customer_info.deviceid, customer_info.ssid, customer_info.pass, customer_info.api_key);
+ 
+    info_size = strlen(cached_device_info_buffer);
+    ble_read_package_numbers = (int)(ceil((float)info_size/BYTES_PER_BLE_PACKET));
 }
 
 void initialize_buffer_cache(void)
@@ -100,16 +112,31 @@ static int uuid_check(uint16_t uuid)
     }
 }
 
+void allow_info_ble_read_delay()
+{
+    vTaskDelay(1500 / portTICK_PERIOD_MS);
+    device_read_execution = false;
+    current_package_sent = 0;
+    vTaskDelete(NULL);
+}
+
 // Read data from ESP32 defined as server
 static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    ESP_LOGI("DEVICE READ SERVICE", "%d, %d", con_handle, attr_handle);
-    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
+    if (!device_read_execution)
     {
         ESP_LOGI("READ GATT SERVICE", "Read requested by a bluetooth connection!");
+        ESP_LOGI("DEVICE READ SERVICE", "Total info package: %d, Number of packets to be sent: %d", info_size, ble_read_package_numbers);
+        xTaskCreate(&allow_info_ble_read_delay, "ble read info delay allowance", 700, NULL, 3, NULL);
+    }
+
+    if (current_package_sent <= ble_read_package_numbers && xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
+    {
+        ESP_LOGI("DEVICE READ SERVICE", "Sending the package (%d/%d)...", current_package_sent++, ble_read_package_numbers);
         os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
         xSemaphoreGive(buffer_mutex);
     }
+    device_read_execution = true;
     return 0;
 }
 
