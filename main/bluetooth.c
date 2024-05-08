@@ -246,9 +246,6 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg)
     return 0;
 }
 
-// TODO:
-// Implement ble module activation when there is no netif network connection and review the advertisement interval
-// Add also the deactivation when the device is already connected to the network by wifi or gsm.
 void ble_advertisement(void)
 {
     // GAP service name configuration

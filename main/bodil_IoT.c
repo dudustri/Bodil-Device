@@ -10,27 +10,49 @@ extern int retry_conn_num;
 
 TaskHandle_t requestHandler = NULL;
 
+// TODO: create a connection utils file and move the functions related to it
+/* --------------------------------------------------------------------------
+   -------------------------------------------------------------------------- */
+
 void set_network_disconnected(bool conn)
 {
-    if (!conn) {
+    if (!conn)
+    {
         netif_connected_module = DEACTIVATED;
-        }
+    }
     return;
 }
 
-// TODO: Change this method to also consider the connection via NB-IoT network with the gsm module.
+bool is_connection_stabilished(enum NetworkModuleUsed *module)
+{
+    if (*module == DEACTIVATED)
+        return false;
+    else
+    {
+        switch (*module)
+        {
+        case WIFI:
+            return wifi_connection_get_status() == ESP_OK ? true : false;
+        case GSM:
+            return gsm_connection_get_status() == ESP_OK ? true : false;
+        default:
+            ESP_LOGW("NETWORK CONNECTION CHECK", "Unexpected error when trying to identify the network module.");
+            return false;
+        }
+    }
+}
+
+// TODO: change this method to also consider the connection via NB-IoT network with the gsm module. (TEST the implementation)
 void periodic_heatpump_state_check_task(void *args)
 {
-    UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark( NULL );
+    UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
     // retrieve the arguments and cast it to the right structure
     PeriodicRequestArgs *request_info = (PeriodicRequestArgs *)args;
 
     while (1)
     {
-        // Get the wifi status
-        int wifi_status = wifi_connection_get_status();
         // Check if connected before making the HTTP request
-        if (wifi_status == ESP_OK)
+        if (is_connection_stabilished(request_info->module) == ESP_OK)
         {
             get_heatpump_set_state(request_info->service_url, request_info->api_header, request_info->api_key);
             set_led_state(BLUE);
@@ -41,7 +63,7 @@ void periodic_heatpump_state_check_task(void *args)
         }
         else
         {
-            ESP_LOGW("WIFI CONNECTION", "Not connected to WiFi. Waiting 30 seconds to execute a new request...\n");
+            ESP_LOGW("NETWORK CONNECTION", "Module not connected to network or with a weak signal. Waiting 30 seconds to execute a new request...\n");
             set_led_state(RED);
             vTaskDelay(30000 / portTICK_PERIOD_MS);
             set_led_state(DARK);
@@ -52,7 +74,7 @@ void periodic_heatpump_state_check_task(void *args)
     }
 }
 
-PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_header, char *api_key)
+PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_header, char *api_key, enum NetworkModuleUsed * module)
 {
     PeriodicRequestArgs *args = (PeriodicRequestArgs *)pvPortMalloc(sizeof(PeriodicRequestArgs));
     if (args != NULL)
@@ -60,11 +82,11 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
         args->service_url = service_url;
         args->api_header = api_header;
         args->api_key = api_key;
+        args->module = module;
     }
     return args;
 }
 
-// TODO: add a BLUETOOTH option to the module type to identify it and destroy the BLE object when a connection is established
 void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type)
 {
     if (*module_type == DEACTIVATED)
@@ -88,9 +110,6 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
     }
 }
 
-// TODO: do a logic handler to switch on and off the bluetooth based on the connection type!
-//  change the connection type to DEACTIVATED if one of the modules initially connected doesn't work for certain time
-//  similar to an timeout. Then it turns on the  bluetooth stack and log the problem.
 void connection_status_handler(char *ble_name, bool *ble_active)
 {
     if (netif_connected_module == DEACTIVATED && !*ble_active)
@@ -130,6 +149,9 @@ void connection_status_handler(char *ble_name, bool *ble_active)
     ESP_LOGI("Netif Mode Handler", "The connection status did not change. Keep running the BLE service...");
     return;
 }
+
+/* --------------------------------------------------------------------------
+   -------------------------------------------------------------------------- */
 
 void app_main(void)
 {
@@ -177,8 +199,9 @@ void app_main(void)
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 
+    // TODO: move this to a new function
     // Creates a periodic task that calls get_heatpump_set_state every 15 seconds
-    PeriodicRequestArgs *args = prepare_task_args(service_url, api_header_name, customer_info.api_key);
+    PeriodicRequestArgs *args = prepare_task_args(service_url, api_header_name, customer_info.api_key, &netif_connected_module);
     if (args != NULL)
     {
         xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 3200, args, 3, &requestHandler);

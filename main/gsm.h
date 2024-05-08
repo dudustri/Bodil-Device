@@ -7,6 +7,7 @@
 esp_err_t start_gsm_module(void);
 esp_err_t destroy_gsm_module(esp_modem_dce_t *, esp_netif_t *);
 esp_err_t check_signal_quality(esp_modem_dce_t *);
+esp_err_t gsm_connection_get_status(void);
 
     #ifdef INTERNAL_GSM
 
