@@ -9,6 +9,7 @@
 // Set user APN details
 #define CONFIG_APN "user_apn"
 #define CONFIG_APN_PIN "12345678"
+#define GSM_RETRIES_NUM 5
 
 esp_modem_dce_t *gsm_modem = NULL;
 esp_netif_t *esp_netif = NULL;
@@ -140,6 +141,35 @@ static void on_ppp_changed(void *arg, esp_event_base_t event_base, int32_t event
     }
 }
 
+// TODO: this method will keep being called since the set_network_disconnected(false) is not implemented. Define a threshold to detroy the GSM module.
+esp_err_t gsm_connection_get_status(void)
+{
+    int retries = 0;
+    int signal_ok = false;
+    esp_err_t ret_check;
+    do
+    {
+        ret_check = check_signal_quality(gsm_modem); // direct access to gsm_modem in this file
+        if (ret_check != ESP_OK)
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000 * retries));
+            retries++;
+            if (retries >= GSM_RETRIES_NUM)
+            {
+                ESP_LOGE("START GSM MODULE - Signal Quality Check", "No signal was identified.");
+                return ret_check;
+            }
+            ESP_LOGW("START GSM MODULE - Signal Quality Check", "The signal quality check failed... Retrying (%d/%d)", retries, GSM_RETRIES_NUM);
+        }
+        else
+        {
+            signal_ok = true;
+        }
+    } while (!signal_ok);
+
+    return ret_check;
+}
+
 esp_err_t start_gsm_module(void)
 {
 
@@ -185,40 +215,33 @@ esp_err_t start_gsm_module(void)
     if (ret_check != ESP_OK)
     {
         ESP_LOGE("START GSM MODULE - Set Pin - Check", "Not chipset or pin config was identified. Destroying GSM module...");
-        destroy_gsm_module(gsm_modem, esp_netif);
+        if (destroy_gsm_module(gsm_modem, esp_netif) != ESP_OK)
+        {
+            ESP_LOGE("START GSM MODULE - Set Pin - Check", "Error destroying the GSM module.");
+        }
         return ret_check;
     }
 
     // check signal quality
-    int retries = 0;
-    int signal_ok = false;
-    do
+    ret_check = gsm_connection_get_status();
+    if (ret_check != ESP_OK)
     {
-        ret_check = check_signal_quality(gsm_modem);
-        if (ret_check != ESP_OK)
+        ESP_LOGW("START GSM MODULE - Signal Quality Check", "Destroying the GSM module and set modem state to DEACTIVATED.");
+        if (destroy_gsm_module(gsm_modem, esp_netif) != ESP_OK)
         {
-            vTaskDelay(pdMS_TO_TICKS(700));
-            retries++;
-            if (retries <= 5)
-            {
-                ESP_LOGE("START GSM MODULE - Signal Quality Check", "No signal was identified. Destroying GSM module...");
-                destroy_gsm_module(gsm_modem, esp_netif);
-                return ret_check;
-            }
-            ESP_LOGW("START GSM MODULE - Signal Quality Check", "The signal quality check failed... Retrying (%d)", retries);
+            ESP_LOGE("START GSM MODULE - Signal Quality Check", "Error destroying the GSM module.");
         }
-        else
-        {
-            signal_ok = true;
-        }
-    } while (!signal_ok);
-
+        return ret_check;
+    }
     // set the GSM module to data mode
     ret_check = esp_modem_set_mode(gsm_modem, ESP_MODEM_MODE_DATA);
     if (ret_check != ESP_OK)
     {
         ESP_LOGE("START GSM MODULE - SET DATA MODE - ESP MODEM", "esp_modem_set_mode(ESP_MODEM_MODE_DATA) failed with %d", ret_check);
-        destroy_gsm_module(gsm_modem, esp_netif);
+        if (destroy_gsm_module(gsm_modem, esp_netif) != ESP_OK)
+        {
+            ESP_LOGE("START GSM MODULE - SET DATA MODE", "Error destroying the GSM module.");
+        }
         return ret_check;
     }
 

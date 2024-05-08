@@ -36,12 +36,14 @@ void set_network_disconnected(bool);
         const char *service_url;
         const char *api_header;
         const char *api_key;
+        enum NetworkModuleUsed *module;
     } PeriodicRequestArgs;
 
     void periodic_heatpump_state_check_task(void *);
-    PeriodicRequestArgs *prepare_task_args(const char *, const char *, char *);
+    PeriodicRequestArgs *prepare_task_args(const char *, const char *, char *, enum NetworkModuleUsed *);
     void handle_netif_mode(const BodilCustomer *, enum NetworkModuleUsed *);
     void connection_status_handler(char *, bool *);
+    bool is_connection_stabilished(enum NetworkModuleUsed *);
 
     #endif
 

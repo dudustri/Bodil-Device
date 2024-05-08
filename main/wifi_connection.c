@@ -35,6 +35,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
                 if(wifi_check == ESP_OK) status_connected = true;
                 break;
             }
+            destroy_wifi_module(netif_pointer);
             set_network_disconnected(status_connected);
         }
         break;
@@ -48,7 +49,6 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
     }
 }
 
-// TODO: test this guy if it is working properly since it is not stoping the netif wifi module in a normal procedure (check documentation)
 esp_err_t destroy_wifi_module(esp_netif_t *esp_netif)
 {
     esp_err_t stop_wifi_status = esp_wifi_disconnect();
@@ -81,7 +81,6 @@ esp_err_t destroy_wifi_module(esp_netif_t *esp_netif)
     return stop_wifi_status;
 }
 
-// TODO: Make this better for god sake
 esp_err_t wifi_connection_init()
 {
     esp_err_t init_check = ESP_OK;
@@ -187,16 +186,10 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
         conn_stats_num++;
     } while (wifi_check != ESP_OK && conn_stats_num <= 3);
 
-    /*TODO:
-    - this line is messy - change this to make more clear and also test the destroy - it needs to work properly
-    - maybe print the pointer to see if it is being allocated properly. Check if there is some deinit functions for the wifi module.
-    */
     return wifi_check == ESP_OK ? ESP_OK : destroy_wifi_module(netif_pointer) == ESP_OK ? ESP_FAIL
                                                                                         : ESP_ERR_WIFI_NOT_INIT;
 }
 
-// TODO: check this function since it is the one calling esp_wifi_sta_get_ap_info that is spamming the log!
-// It should be called only if a connection is stabilished with an AP.
 esp_err_t wifi_connection_get_status()
 {
     wifi_ap_record_t ap_info;
