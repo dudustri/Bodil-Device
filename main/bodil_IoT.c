@@ -158,6 +158,20 @@ void app_main(void)
     /*  _____________________________________________________
         --------------Initialization procedure:--------------
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
+    /* TODO: set the TAG for all log messages for defined ones and set the log level here.
+    Example:
+    ESP_LOGI(TAG, "[APP] Startup..");
+    ESP_LOGI(TAG, "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("esp-tls", ESP_LOG_VERBOSE);
+    esp_log_level_set("mqtt_client", ESP_LOG_VERBOSE);
+    esp_log_level_set("mqtt_example", ESP_LOG_VERBOSE);
+    esp_log_level_set("transport_base", ESP_LOG_VERBOSE);
+    esp_log_level_set("transport", ESP_LOG_VERBOSE);
+    esp_log_level_set("outbox", ESP_LOG_VERBOSE);
+    */
+   
     esp_err_t ret;
 
     ESP_ERROR_CHECK(nvs_dotenv_load());
@@ -167,6 +181,7 @@ void app_main(void)
     const char *service_url = getenv("SERVICE_URL");
     const char *default_ssid = getenv("SSID_DEFAULT");
     const char *default_pass = getenv("PASS_DEFAULT");
+    const char *default_broker_mqtt_url = getenv("BROKER_MQTT_URL");
 
     ret = nvs_flash_init(); // store the customer configs (non volatile) [struct config]
 
