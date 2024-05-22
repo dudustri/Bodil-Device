@@ -47,7 +47,8 @@
 		"stdlib.h": "c",
 		"uart.h": "c",
 		"time.h": "c",
-		"esp_event.h": "c"
+		"esp_event.h": "c",
+		"stddef.h": "c"
 	},
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": true
