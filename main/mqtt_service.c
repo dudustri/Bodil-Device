@@ -1,3 +1,4 @@
+#define MQTT_PROTOCOL
 #include "mqtt_service.h"
 
 /* TODO: feature! - INVESTIGATE MQTT 5!!!
@@ -75,17 +76,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         */
         break;
     case MQTT_EVENT_SUBSCRIBED:
-        ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_SUBSCRIBED, message_status=%d", event->message_status);
+        ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_SUBSCRIBED, message_status=%d", message_status);
         // TODO: dispatch a new task to change the machine state based on the message status.
         // Send back to the server a confirmation server, avoiding
         message_status = esp_mqtt_client_publish(client, "/bodil/device/{deviceID}/confirmation", "command received", 0, 1, 0);
         ESP_LOGI(TAG, "sent publish successful, message_status=%d", message_status);
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
-        ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, message_status=%d", event->message_status);
+        ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, message_status=%d", message_status);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, message_status=%d", event->message_status);
+        ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, message_status=%d", message_status);
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
@@ -113,7 +114,7 @@ static void mqtt_app_start(char * broker_url){
     //TODO: change this to something similar with this -> https://github.com/espressif/esp-idf/blob/v5.2.1/examples/protocols/mqtt/ssl_ds/main/app_main.c
 
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = *broker_url,
+        .broker.address.uri = broker_url,
         // TODO: set the certifications
         // .verification.certificate = (const char *)mqtt_eclipseprojects_io_pem_start
     };
