@@ -6,3 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(bodil_IoT)
+
+target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certificates/client.crt" TEXT)
+target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certificates/client.key" TEXT)
+target_add_binary_data(${CMAKE_PROJECT_NAME}.elf "main/certificates/ca.crt" TEXT)

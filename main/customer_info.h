@@ -14,7 +14,7 @@
 typedef struct BodilCustomer
 {
     char name[MAX_NAME_LENGTH];
-    int deviceid;
+    int device_id;
     char ssid[MAX_SSID_LENGTH];
     char pass[MAX_PASS_LENGTH];
     char api_key[MAX_API_KEY_LENGTH];
