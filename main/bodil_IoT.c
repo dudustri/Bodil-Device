@@ -199,8 +199,8 @@ void app_main(void)
     // TODO: Remove this from the init routine in production code
     clear_blob_nvs("storage", "customer");
 
-    // If deviceid is zero then the device shoud be reseted to the default values
-    if (customer_info.deviceid == 0)
+    // If device_id is zero then the device shoud be reseted to the default values
+    if (customer_info.device_id == 0)
     {
         ESP_LOGI("MAIN THREAD", "Customer initialized with the default data.\n");
         set_customer_info(&customer_info, "bodil_dev", 1, default_ssid, default_pass, api_key);
@@ -211,6 +211,7 @@ void app_main(void)
     led_init();
     heat_pump_state_init();
     machine_control_init();
+    mqtt_service_start(default_broker_mqtt_url);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 

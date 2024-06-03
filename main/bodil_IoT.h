@@ -25,6 +25,7 @@ void set_network_disconnected(bool);
     #include "customer_info.h"
     #include "non_volatile_memory.h"
     #include "nvs_dotenv.h"
+    #include "mqtt_service.h"
 
     enum NetworkModuleUsed{
         WIFI,
