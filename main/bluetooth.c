@@ -36,7 +36,7 @@ void update_buffer(void)
         return;
     }
     snprintf(cached_device_info_buffer, INFO_BUFFER_SIZE, "Device Information:\n Name: %s\n DeviceID: %d\n SSID: %s\n Password: %s\n API Key: %s\n",
-             customer_info.name, customer_info.deviceid, customer_info.ssid, customer_info.pass, customer_info.api_key);
+             customer_info.name, customer_info.device_id, customer_info.ssid, customer_info.pass, customer_info.api_key);
  
     info_size = strlen(cached_device_info_buffer);
     ble_read_package_numbers = (int)(ceil((float)info_size/BYTES_PER_BLE_PACKET));
