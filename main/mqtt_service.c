@@ -118,9 +118,16 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 // TODO: call the mqtt_service_start in the main thread
 static void mqtt_client(const char * broker_url){
 
+    esp_err_t err;
+
+/* TODO: 
+    review the .broker.verification.skip_cert_common_name_check (probably set to false) for production
+    it can introduce vulnerabilities such as man in the middle MITM attacks
+*/
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = broker_url,
         .broker.verification.certificate = (const char *)broker_cert_pem_start,
+        .broker.verification.skip_cert_common_name_check = false,
         .credentials = {
             .authentication = {
                 .certificate = (const char *)client_cert_pem_start,
@@ -130,13 +137,26 @@ static void mqtt_client(const char * broker_url){
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    if(!client) {
+        ESP_LOGE(MQTT_TAG, "Failed to initialize client");
+        return;
+    }
     /* The last argument may be used to pass data to the event handler, in this example mqtt_event_handler */
-    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    err = esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    if(err != ESP_OK) {
+        ESP_LOGE(MQTT_TAG, "Failed to register the event handlers to the initialized client");
+        return;
+    }
     esp_mqtt_client_start(client);
+    if(err != ESP_OK) {
+        ESP_LOGE(MQTT_TAG, "Failed to start the mqtt service!");
+        return;
+    }
 }
 
 
 void mqtt_service_start(const char * broker_url){
     mqtt_client(broker_url);
+    //TODO: print here the certificates for inspection
     return;
 }
