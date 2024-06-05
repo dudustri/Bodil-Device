@@ -74,7 +74,7 @@ void periodic_heatpump_state_check_task(void *args)
     }
 }
 
-PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_header, char *api_key, enum NetworkModuleUsed * module)
+PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_header, char *api_key, enum NetworkModuleUsed *module)
 {
     PeriodicRequestArgs *args = (PeriodicRequestArgs *)pvPortMalloc(sizeof(PeriodicRequestArgs));
     if (args != NULL)
@@ -132,21 +132,21 @@ void connection_status_handler(char *ble_name, bool *ble_active)
             *ble_active = false;
             if (requestHandler != NULL)
             {
-                ESP_LOGI("Netif Mode Handler", "Server request thread resumed!");
+                ESP_LOGI("Connection Status Handler", "Server request thread resumed!");
                 vTaskResume(requestHandler);
                 return;
             }
             // TODO: add a routine here to try to create a new task to make the requests.
-            ESP_LOGW("Netif Mode Handler", "Unexpected behaviour! No request task was created in the background!");
+            ESP_LOGW("Connection Status Handler", "Unexpected behaviour! No request task was created in the background!");
             return;
         }
         else
         {
-            ESP_LOGE("Netif Mode Handler", "An error happened when stopping the BLE service...");
+            ESP_LOGE("Connection Status Handler", "An error happened when stopping the BLE service...");
             return;
         }
     }
-    ESP_LOGI("Netif Mode Handler", "The connection status did not change. Keep running the BLE service...");
+    ESP_LOGI("Connection Status Handler", "The connection status did not change. Keep running the BLE service...");
     return;
 }
 
@@ -171,7 +171,7 @@ void app_main(void)
     esp_log_level_set("transport", ESP_LOG_VERBOSE);
     esp_log_level_set("outbox", ESP_LOG_VERBOSE);
     */
-   
+
     esp_err_t ret;
 
     ESP_ERROR_CHECK(nvs_dotenv_load());
@@ -211,6 +211,10 @@ void app_main(void)
     led_init();
     heat_pump_state_init();
     machine_control_init();
+
+    // TEST MQTT
+    handle_netif_mode(&customer_info, &netif_connected_module);
+    connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
     mqtt_service_start(default_broker_mqtt_url);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
