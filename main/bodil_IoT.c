@@ -25,6 +25,7 @@ void set_network_disconnected(bool conn)
 
 bool is_connection_stabilished(enum NetworkModuleUsed *module)
 {
+    ESP_LOGW("CONN_SERVICE", "module: %d", *module);
     if (*module == DEACTIVATED)
         return false;
     else
@@ -52,7 +53,7 @@ void periodic_heatpump_state_check_task(void *args)
     while (1)
     {
         // Check if connected before making the HTTP request
-        if (is_connection_stabilished(request_info->module) == ESP_OK)
+        if (is_connection_stabilished(request_info->module))
         {
             get_heatpump_set_state(request_info->service_url, request_info->api_header, request_info->api_key);
             set_led_state(BLUE);
@@ -112,7 +113,11 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
 
 void connection_status_handler(char *ble_name, bool *ble_active)
 {
-    if (netif_connected_module == DEACTIVATED && !*ble_active)
+    if ( netif_connected_module != DEACTIVATED && !*ble_active){
+        ESP_LOGI("Connection Status Handler", "The connection is stable!");
+        return;
+    }
+    else if (netif_connected_module == DEACTIVATED && !*ble_active)
     {
         if (initialize_bluetooth_service(ble_name) == 0)
         {
@@ -123,6 +128,9 @@ void connection_status_handler(char *ble_name, bool *ble_active)
                 vTaskSuspend(requestHandler);
                 return;
             }
+        }
+        else{
+            ESP_LOGE("Connection Status Handler", "Error initializing Bluetooth service.");
         }
     }
     else if (netif_connected_module != DEACTIVATED && *ble_active)
@@ -146,7 +154,7 @@ void connection_status_handler(char *ble_name, bool *ble_active)
             return;
         }
     }
-    ESP_LOGI("Connection Status Handler", "The connection status did not change. Keep running the BLE service...");
+    ESP_LOGI("Connection Status Handler", "The connection problem wasn't solved and the status did not change. Keep running the BLE service...");
     return;
 }
 
@@ -182,6 +190,7 @@ void app_main(void)
     const char *default_ssid = getenv("SSID_DEFAULT");
     const char *default_pass = getenv("PASS_DEFAULT");
     const char *default_broker_mqtt_url = getenv("BROKER_MQTT_URL");
+    const char *default_broker_password = getenv("BROKER_PASS");
 
     ret = nvs_flash_init(); // store the customer configs (non volatile) [struct config]
 
@@ -215,7 +224,7 @@ void app_main(void)
     // TEST MQTT
     handle_netif_mode(&customer_info, &netif_connected_module);
     connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
-    mqtt_service_start(default_broker_mqtt_url);
+    mqtt_service_start(default_broker_mqtt_url, default_broker_password);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 
@@ -240,8 +249,5 @@ void app_main(void)
 
         vTaskDelay(30000 / portTICK_PERIOD_MS);
         ESP_LOGI("MAIN THREAD", "5 minutes passed in the main thread \n");
-        // ------------------------------------------------------------------------------------------------
-        // energy saving mode to use in the future
-        // esp_deep_sleep(5 * 60 * 1000000);  // Sleep for 5 minutes in microseconds
     }
 }

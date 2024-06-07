@@ -15,6 +15,7 @@ void get_heatpump_set_state();
     #include "heat_pump_state.h"
     #include "led_control_sim.h"
     #include "machine_control.h"
+    #include "utils.h"
 
     // Private Functions Declarations
     esp_err_t client_handler(esp_http_client_event_handle_t);
