@@ -1,9 +1,14 @@
 #ifndef MQTT_SERVICE_H
 #define MQTT_SERVICE_H
 
-    void mqtt_service_start(const char *);
+    void mqtt_service_start(const char *, const char *);
 
     #ifdef MQTT_PROTOCOL
+
+        // Enables heat pump state extra methods
+        #define HP_STATE_MANAGER
+        #define MACHINE_INTERFACE
+        
         #include <stdio.h>
         #include <stdint.h>
         #include <stddef.h>
@@ -27,9 +32,13 @@
         #include "mqtt_client.h"
 
         #include "customer_info.h"
+        #include "heat_pump_state.h"
+        #include "led_control_sim.h"
+        #include "machine_control.h"
+        #include "utils.h"
 
         static void mqtt_event_handler(void *, esp_event_base_t, int32_t, void *);
-        static void mqtt_client(const char *);
+        static void mqtt_client(const char *, const char *);
 
     #endif
 
