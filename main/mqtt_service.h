@@ -1,7 +1,7 @@
 #ifndef MQTT_SERVICE_H
 #define MQTT_SERVICE_H
 
-    void mqtt_service_start(const char *, const char *);
+    void mqtt_service_start(const char *, const char *, const char *);
 
     #ifdef MQTT_PROTOCOL
 
@@ -38,7 +38,7 @@
         #include "utils.h"
 
         static void mqtt_event_handler(void *, esp_event_base_t, int32_t, void *);
-        static void mqtt_client(const char *, const char *);
+        static void mqtt_client(const char *, const char *, const char *);
 
     #endif
 
