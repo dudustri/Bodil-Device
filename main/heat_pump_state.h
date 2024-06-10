@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+// Token Size!
+#define RESPONSE_DATA_SIZE 88
+
 // HP state data structure
 enum EnergyConsumptionState{
     UNKNOWN_ENERGY_STATE,
@@ -42,6 +45,7 @@ void heat_pump_state_destroy(StateData*);
     #include "esp_log.h"
     #include "esp_system.h"
     #include <time.h>
+    
 
     // Private functions
     void set_energy_consumption_state(StateData*, unsigned long long, enum EnergyConsumptionState);
@@ -51,9 +55,6 @@ void heat_pump_state_destroy(StateData*);
 
     // Heat pump state manager
     #ifdef HP_STATE_MANAGER
-
-    // Token Size!
-    #define RESPONSE_DATA_SIZE 88
 
     // State management functions
     StateData *get_current_energy_consumptionState(void);

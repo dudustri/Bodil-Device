@@ -47,7 +47,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_CONNECTED");
         // This one should send the device ID to this topic and the server will receive and create a MQTT_TAG in the list of monitored devices.
-        message_status = esp_mqtt_client_publish(client, "bodil/connect", "{\"deviceID\": \"6000\"}", 0, 1, 0);
+        message_status = esp_mqtt_client_publish(client, "bodil/connect", "{\"deviceID\": \"1000\"}", 0, 1, 0);
         ESP_LOGI("MQTT HANDLER", "sent publish successful, message_status=%d", message_status);
 
         // Subscribe to the all topic.
@@ -55,7 +55,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
         // Subscribe to its own topic to receive messages from the server individually.
-        message_status = esp_mqtt_client_subscribe(client, "bodil/device/6000", 1);
+        message_status = esp_mqtt_client_subscribe(client, "bodil/device/1000", 1);
         ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
         // Example of unsubscribe - it should trigger a function in the server to remove this device from the list
@@ -86,7 +86,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             send_control_signal(get_current_energy_consumptionState()->state);
         }
         // Send back to the server a confirmation server
-        message_status = esp_mqtt_client_publish(client, "bodil/device/6000/confirmation", "{\"device\": \"6000\" {\"status\": \"command received\"}", 0, 1, 0);
+        message_status = esp_mqtt_client_publish(client, "bodil/device/1000/confirmation", "{\"device\": \"1000\" {\"status\": \"command received\"}", 0, 1, 0);
         ESP_LOGI(MQTT_TAG, "sent publish successful, message_status=%d", message_status);
         break;
     case MQTT_EVENT_ERROR:
@@ -106,7 +106,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 }
 
 // TODO: call the mqtt_service_start in the main thread
-static void mqtt_client(const char *broker_url, const char *broker_pass)
+static void mqtt_client(const char *broker_url, const char * broker_user, const char *broker_pass)
 {
 
     esp_err_t err;
@@ -120,14 +120,17 @@ static void mqtt_client(const char *broker_url, const char *broker_pass)
 
         // TODO: MAKE IT WORKS CERTIFICATES (TRY TO AUTOGENERATE WITH THE CLIENT KEY AND CERTIFICATE INSIDE ESP???)
 
-        // .broker.verification.certificate = (const char *)broker_cert_pem_start,
-        // .broker.verification.skip_cert_common_name_check = true,
-        // .credentials = {
-        //     .authentication = {
-        //         .certificate = (const char *)client_cert_pem_start,
-        //         .key = (const char *)client_key_pem_start,
-        //     },
-        // }
+        .broker.verification.certificate = (const char *)broker_cert_pem_start,
+        .broker.verification.skip_cert_common_name_check = true, // TODO: careful about this declaration <- set to false
+        .credentials = {
+            .username = broker_user,
+            .client_id = broker_user, //TODO: testing the id passing the username
+            .authentication = {
+                .password = broker_pass,
+                .certificate = (const char *)client_cert_pem_start,
+                .key = (const char *)client_key_pem_start,
+            },
+        }
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
@@ -151,9 +154,9 @@ static void mqtt_client(const char *broker_url, const char *broker_pass)
     }
 }
 
-void mqtt_service_start(const char *broker_url, const char *broker_pass)
+void mqtt_service_start(const char *broker_url, const char * broker_user, const char *broker_pass)
 {
-    mqtt_client(broker_url, broker_pass);
+    mqtt_client(broker_url, broker_user, broker_pass);
     // TODO: print here the certificates for inspection
     return;
 }

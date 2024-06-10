@@ -10,6 +10,8 @@ extern int retry_conn_num;
 
 TaskHandle_t requestHandler = NULL;
 
+// TODO: eliminate all alloc calls in this firmware since it is a really bad practice. Figure out how to manage the memory manually (pre-define with planning).
+
 // TODO: create a connection utils file and move the functions related to it
 /* --------------------------------------------------------------------------
    -------------------------------------------------------------------------- */
@@ -190,7 +192,10 @@ void app_main(void)
     const char *default_ssid = getenv("SSID_DEFAULT");
     const char *default_pass = getenv("PASS_DEFAULT");
     const char *default_broker_mqtt_url = getenv("BROKER_MQTT_URL");
-    const char *default_broker_password = getenv("BROKER_PASS");
+    const char *broker_username = getenv("BROKER_MQTT_USER");
+    const char *broker_pass = getenv("BROKER_PASS");
+
+    ESP_LOGI("DEBUG DOTENV", "%s %s", broker_username, broker_pass);
 
     ret = nvs_flash_init(); // store the customer configs (non volatile) [struct config]
 
@@ -224,7 +229,7 @@ void app_main(void)
     // TEST MQTT
     handle_netif_mode(&customer_info, &netif_connected_module);
     connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
-    mqtt_service_start(default_broker_mqtt_url, default_broker_password);
+    mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 
