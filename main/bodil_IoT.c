@@ -216,8 +216,9 @@ void app_main(void)
     // If device_id is zero then the device shoud be reseted to the default values
     if (customer_info.device_id == 0)
     {
+        const int device_id = atoi(getenv("DEVICE_ID"));
         ESP_LOGI("MAIN THREAD", "Customer initialized with the default data.\n");
-        set_customer_info(&customer_info, "bodil_dev", 1, default_ssid, default_pass, api_key);
+        set_customer_info(&customer_info, "bodil_dev", device_id, default_ssid, default_pass, api_key);
         print_customer_info(&customer_info);
         save_to_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));
     }
