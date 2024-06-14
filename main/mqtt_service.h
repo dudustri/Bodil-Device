@@ -8,6 +8,8 @@
         // Enables heat pump state extra methods
         #define HP_STATE_MANAGER
         #define MACHINE_INTERFACE
+        #define MAX_TOPIC_LENGTH 32
+        #define MAX_PAYLOAD_LENGTH 64
         
         #include <stdio.h>
         #include <stdint.h>
@@ -36,6 +38,11 @@
         #include "led_control_sim.h"
         #include "machine_control.h"
         #include "utils.h"
+
+        char topic_unique[MAX_TOPIC_LENGTH];
+        char topic_confirmation[MAX_TOPIC_LENGTH];
+        char payload_confirmation[MAX_PAYLOAD_LENGTH];
+        char payload_registration[MAX_PAYLOAD_LENGTH];
 
         static void mqtt_event_handler(void *, esp_event_base_t, int32_t, void *);
         static void mqtt_client(const char *, const char *, const char *);

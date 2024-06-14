@@ -1,6 +1,7 @@
 #define INTERNAL_BLUETOOTH
 #include "bluetooth.h"
 
+// TODO: move all this defines and variables to the header file under the internal bluetooth flag
 #define GATT_DEVICE_INFO_UUID 0x0B0D
 #define GATT_READ_SERVICE_UUID 0x00BB
 #define GATT_WRITE_NAME_SERVICE_UUID 0x0BB1
