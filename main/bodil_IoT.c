@@ -25,7 +25,7 @@ void set_network_disconnected(bool conn)
 
 bool is_connection_stabilished(enum NetworkModuleUsed *module)
 {
-    ESP_LOGW("CONN_SERVICE", "module: %d", *module);
+    ESP_LOGD("CONN_SERVICE", "module: %d", *module);
     if (*module == DEACTIVATED)
         return false;
     else
