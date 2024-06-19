@@ -5,19 +5,13 @@
 
 jsmn_parser parser;
 jsmntok_t tokens[RESPONSE_DATA_SIZE];
-StateData* current_state = NULL;
+static StateData current_state;
+
 
 StateData * heat_pump_state_init(void){
-    current_state = (StateData*)malloc(sizeof(StateData));
-    if (current_state != NULL) {
-        current_state->state = NORMAL;
-        current_state->timestamp = 0;
-    }
-    return current_state;
-}
-
-void heat_pump_state_destroy(StateData* state){
-    free(state);
+    current_state.state = NORMAL;
+    current_state.timestamp = 0;
+    return &current_state;
 }
 
 void set_energy_consumption_state(StateData* state, unsigned long long timestamp, enum EnergyConsumptionState state_response){
@@ -28,7 +22,7 @@ void set_energy_consumption_state(StateData* state, unsigned long long timestamp
 }
 
 StateData * get_current_energy_consumptionState(void){
-    return current_state;
+    return &current_state;
 }
 
 char * match_state_from_tokens_object(int new_state){
@@ -118,7 +112,7 @@ bool process_heat_pump_energy_state_response(const char* server_response){
         return false;
     }
 
-    if (!identify_and_set_state(tokens, parser_status, server_response, current_state)){
+    if (!identify_and_set_state(tokens, parser_status, server_response, &current_state)){
         ESP_LOGI("Energy State Update", "No state with a valid timestamp was identified. The state will not be changed.");
         return false;
     }

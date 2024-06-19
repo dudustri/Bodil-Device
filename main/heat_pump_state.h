@@ -20,12 +20,8 @@ typedef struct StateData {
     enum EnergyConsumptionState state;
 } StateData;
 
-// export the state data as a general variable
-extern StateData * current_state;
-
 // Public functions
 StateData *heat_pump_state_init(void);
-void heat_pump_state_destroy(StateData*);
 
     // Include jsmn only if INCLUDE_JSMN is defined - parser definition
     #ifdef INCLUDE_JSMN
@@ -46,7 +42,6 @@ void heat_pump_state_destroy(StateData*);
     #include "esp_system.h"
     #include <time.h>
     
-
     // Private functions
     void set_energy_consumption_state(StateData*, unsigned long long, enum EnergyConsumptionState);
     char * match_state_from_tokens_object(int);
