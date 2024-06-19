@@ -10,8 +10,6 @@ extern int retry_conn_num;
 
 TaskHandle_t requestHandler = NULL;
 
-// TODO: eliminate all alloc calls in this firmware since it is a really bad practice. Figure out how to manage the memory manually (pre-define with planning).
-
 // TODO: create a connection utils file and move the functions related to it
 /* --------------------------------------------------------------------------
    -------------------------------------------------------------------------- */

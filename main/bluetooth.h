@@ -34,6 +34,17 @@ int stop_bluetooth_service(void);
     #include "customer_info.h"
     #include "non_volatile_memory.h"
 
+    #define GATT_DEVICE_INFO_UUID 0x0B0D
+    #define GATT_READ_SERVICE_UUID 0x00BB
+    #define GATT_WRITE_NAME_SERVICE_UUID 0x0BB1
+    #define GATT_WRITE_SSID_SERVICE_UUID 0x0BB2
+    #define GATT_WRITE_PASS_SERVICE_UUID 0x0BB3
+
+    #define INFO_BUFFER_SIZE 210
+    #define MANUFACTURER_DATA_SIZE 16
+    #define QUEUE_TOKEN_SIZE 5
+    #define BYTES_PER_BLE_PACKET 16 // Data bytes sent per BLE packet
+
     // Private Functions Declarations
     void update_buffer(void);
     void initialize_buffer_cache(void);

@@ -1,19 +1,7 @@
 #define INTERNAL_BLUETOOTH
 #include "bluetooth.h"
 
-// TODO: move all this defines and variables to the header file under the internal bluetooth flag
-#define GATT_DEVICE_INFO_UUID 0x0B0D
-#define GATT_READ_SERVICE_UUID 0x00BB
-#define GATT_WRITE_NAME_SERVICE_UUID 0x0BB1
-#define GATT_WRITE_SSID_SERVICE_UUID 0x0BB2
-#define GATT_WRITE_PASS_SERVICE_UUID 0x0BB3
-
-#define INFO_BUFFER_SIZE 210
-#define MANUFACTURER_DATA_SIZE 16
-#define QUEUE_TOKEN_SIZE 5
-#define BYTES_PER_BLE_PACKET 16 // Data bytes sent per BLE packet
-
-char *cached_device_info_buffer = NULL;
+static char cached_device_info_buffer[INFO_BUFFER_SIZE];
 uint8_t ble_address_type;
 
 // BLE Read Control Variables
@@ -23,8 +11,9 @@ int current_package_sent = 0;
 
 static bool device_read_execution = false;
 
-// Mutex for synchronizing access to the cached_device_info_buffer
-SemaphoreHandle_t buffer_mutex;
+// (static) Mutex for synchronizing access to the cached_device_info_buffer
+SemaphoreHandle_t cache_mutex = NULL;
+StaticSemaphore_t mutex_buffer_cache;
 
 /* ----------------------------------------------------------------
 ------------------ Device Info Buffer Cache -----------------------*/
@@ -32,7 +21,7 @@ SemaphoreHandle_t buffer_mutex;
 // TODO: Change the buffer info to json format!
 void update_buffer(void)
 {
-    if (strlen(customer_info.name) == 0 || strlen(customer_info.ssid) == 0 || strlen(customer_info.pass) == 0 || strlen(customer_info.api_key) == 0 || cached_device_info_buffer == NULL)
+    if (strlen(customer_info.name) == 0 || strlen(customer_info.ssid) == 0 || strlen(customer_info.pass) == 0 || strlen(customer_info.api_key) == 0)
     {
         return;
     }
@@ -45,24 +34,13 @@ void update_buffer(void)
 
 void initialize_buffer_cache(void)
 {
-
-    cached_device_info_buffer = NULL;
-    cached_device_info_buffer = (char *)calloc(INFO_BUFFER_SIZE, sizeof(char));
-
-    if (cached_device_info_buffer == NULL)
-    {
-        ESP_LOGE("Customer Info Cache", "Customer info's cached buffer memory allocation failed...\n");
-        return;
-    }
-
+    memset(cached_device_info_buffer, 0, INFO_BUFFER_SIZE);
     update_buffer();
 
-    buffer_mutex = xSemaphoreCreateMutex();
-    if (buffer_mutex == NULL)
+    cache_mutex = xSemaphoreCreateMutexStatic(&mutex_buffer_cache);
+    if (cache_mutex == NULL)
     {
         ESP_LOGE("Mutex", "Mutex creation failed...\n");
-        free(cached_device_info_buffer);
-        cached_device_info_buffer = NULL;
     }
 }
 
@@ -131,11 +109,11 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
         xTaskCreate(&allow_info_ble_read_delay, "ble read info delay allowance", 700, NULL, 3, NULL);
     }
 
-    if (current_package_sent <= ble_read_package_numbers && xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
+    if (current_package_sent <= ble_read_package_numbers && xSemaphoreTake(cache_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
     {
         ESP_LOGI("DEVICE READ SERVICE", "Sending the package (%d/%d)...", current_package_sent++, ble_read_package_numbers);
         os_mbuf_append(ctxt->om, cached_device_info_buffer, INFO_BUFFER_SIZE);
-        xSemaphoreGive(buffer_mutex);
+        xSemaphoreGive(cache_mutex);
     }
     device_read_execution = true;
     return 0;
@@ -144,7 +122,9 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 // Write service callback to update a parameter in the customer info object
 static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    char *data = NULL;
+    uint16_t ble_message_buffer_size = ctxt->om->om_len;
+    char data [ble_message_buffer_size + 1];
+    memset(data, 0, INFO_BUFFER_SIZE);
     if (arg == NULL)
     {
         ESP_LOGE("WRITE GATT SERVICE", "NULL pointer argument passed unabling to recognize the service UUID\n");
@@ -153,20 +133,11 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     ESP_LOGI("DEVICE WRITE HANDLER", "%d", (int)arg);
     uint16_t uuid = *((uint16_t *)arg);
 
-    if (xSemaphoreTake(buffer_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
+    if (xSemaphoreTake(cache_mutex, (TickType_t)portMAX_DELAY) == pdTRUE)
     {
 
-        data = (char *)malloc(ctxt->om->om_len + 1);
-        if (data == NULL)
-        {
-            ESP_LOGE("WRITE GATT SERVICE", "data buffer memory allocation failed...\n");
-            free(data);
-            return 1;
-        }
-
-        // Copy data from om_data to the dynamically allocated buffer
-        memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
-        data[ctxt->om->om_len] = '\0';
+        // Copy data from om_data to the stack memory buffer
+        memcpy(data, ctxt->om->om_data, ble_message_buffer_size);
 
         int user_set_type = uuid_check(uuid);
 
@@ -180,8 +151,7 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
         ESP_LOGI("WRITE GATT SERVICE", "New %d set: %s\n", user_set_type, data);
 
         update_buffer();
-        free(data);
-        xSemaphoreGive(buffer_mutex);
+        xSemaphoreGive(cache_mutex);
     }
     return 0;
 }
@@ -227,13 +197,11 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg)
         }
         else
         {
-            if (cached_device_info_buffer == NULL)
-                initialize_buffer_cache();
+            initialize_buffer_cache();
         }
         break;
     // Advertise again after completion of the event
     case BLE_GAP_EVENT_DISCONNECT:
-        free(cached_device_info_buffer);
         ESP_LOGI("GAP", "BLE GAP EVENT DISCONNECTED");
         ble_advertisement();
         break;
