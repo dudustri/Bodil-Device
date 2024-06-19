@@ -149,7 +149,7 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
             },
         }};
 
-    // TODO: print here the certificates for inspection
+    // TODO: printing here the certificates for inspection - remove it in production
     ESP_LOGW("CA DEBUG", "%s", mqtt_cfg.broker.verification.certificate);
     ESP_LOGW("Client Certificate DEBUG", "%s", mqtt_cfg.credentials.authentication.certificate);
     ESP_LOGW("Client Key DEBUG", "%s", mqtt_cfg.credentials.authentication.key);
