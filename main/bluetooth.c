@@ -11,7 +11,7 @@ int current_package_sent = 0;
 
 static bool device_read_execution = false;
 
-// (static) Mutex for synchronizing access to the cached_device_info_buffer
+// (RTOS static) Mutex for synchronizing access to the cached_device_info_buffer
 SemaphoreHandle_t cache_mutex = NULL;
 StaticSemaphore_t mutex_buffer_cache;
 
@@ -122,9 +122,9 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 // Write service callback to update a parameter in the customer info object
 static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    uint16_t ble_message_buffer_size = ctxt->om->om_len;
-    char data [ble_message_buffer_size + 1];
-    memset(data, 0, INFO_BUFFER_SIZE);
+    uint16_t ble_message_buffer_size = ctxt->om->om_len + 1;
+    char data [ble_message_buffer_size];
+    memset(data, 0, ble_message_buffer_size);
     if (arg == NULL)
     {
         ESP_LOGE("WRITE GATT SERVICE", "NULL pointer argument passed unabling to recognize the service UUID\n");
@@ -137,7 +137,7 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     {
 
         // Copy data from om_data to the stack memory buffer
-        memcpy(data, ctxt->om->om_data, ble_message_buffer_size);
+        memcpy(data, ctxt->om->om_data, ctxt->om->om_len);
 
         int user_set_type = uuid_check(uuid);
 
