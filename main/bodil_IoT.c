@@ -228,7 +228,7 @@ void app_main(void)
     // TEST MQTT
     handle_netif_mode(&customer_info, &netif_connected_module);
     connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
-    mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
+    // mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first
 
