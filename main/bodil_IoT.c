@@ -34,8 +34,8 @@ bool is_connection_stabilished(enum NetworkModuleUsed *module)
         {
         case WIFI:
             return wifi_connection_get_status() == ESP_OK ? true : false;
-        case GSM:
-            return gsm_connection_get_status() == ESP_OK ? true : false;
+        case SIM_NETWORK:
+            return sim_network_connection_get_status() == ESP_OK ? true : false;
         default:
             ESP_LOGW("NETWORK CONNECTION CHECK", "Unexpected error when trying to identify the network module.");
             return false;
@@ -43,7 +43,7 @@ bool is_connection_stabilished(enum NetworkModuleUsed *module)
     }
 }
 
-// TODO: change this method to also consider the connection via NB-IoT network with the gsm module. (TEST the implementation)
+// TODO: change this method to also consider the connection via NB-IoT network with the sim_network module. (TEST the implementation)
 void periodic_heatpump_state_check_task(void *args)
 {
     UBaseType_t uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
@@ -100,11 +100,11 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
             *module_type = WIFI;
             return;
         }
-        // GSM interface initialization
-        if (start_gsm_module() == ESP_OK)
+        // SIM_NETWORK interface initialization
+        if (start_sim_network_module() == ESP_OK)
         {
-            ESP_LOGI("Netif Mode Handler", "Automatic connection established with the GSM module in data mode!");
-            *module_type = GSM;
+            ESP_LOGI("Netif Mode Handler", "Automatic connection established with the SIM_NETWORK module in data mode!");
+            *module_type = SIM_NETWORK;
             return;
         }
         ESP_LOGW("Netif Mode Handler", "Entering in standby mode since neither module could stabilish a network connection...");
