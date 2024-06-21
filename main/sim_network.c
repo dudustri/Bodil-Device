@@ -12,22 +12,26 @@
 #define SIM_NETWORK_RETRIES_NUM 5
 #define BUF_SIZE 1024
 
-#define CHECK_ERR(cmd, success_action)  do {    \
-        esp_err_t ret = cmd;                    \
-        if (ret == ESP_OK) {                    \
-            success_action;                     \
-        } else {                                \
-            ESP_LOGE(TAG, "Failed with %s", ret == ESP_ERR_TIMEOUT ? "TIMEOUT":"ERROR");  \
-        } } while (0)
-
+#define CHECK_ERR(cmd, success_action)                                                     \
+    do                                                                                     \
+    {                                                                                      \
+        esp_err_t ret = cmd;                                                               \
+        if (ret == ESP_OK)                                                                 \
+        {                                                                                  \
+            success_action;                                                                \
+        }                                                                                  \
+        else                                                                               \
+        {                                                                                  \
+            ESP_LOGE(TAG, "Failed with %s", ret == ESP_ERR_TIMEOUT ? "TIMEOUT" : "ERROR"); \
+        }                                                                                  \
+    } while (0)
 
 const char *TAG = "Modem SIM Network";
 esp_modem_dce_t *sim_mod_dce = NULL;
 esp_netif_t *esp_netif = NULL;
 
-
-
-void dce_init(esp_modem_dce_t **dce, esp_netif_t **esp_netif){
+void dce_init(esp_modem_dce_t **dce, esp_netif_t **esp_netif)
+{
 
     // esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG();
     // esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -36,28 +40,28 @@ void dce_init(esp_modem_dce_t **dce, esp_netif_t **esp_netif){
     *esp_netif = esp_netif_new(&netif_ppp_config);
     assert(*esp_netif);
 
-    //dte configuration
+    // dte configuration
     const esp_modem_dte_config_t dte_config = {
-    .dte_buffer_size = 512,
-    .task_stack_size = 4096,
-    .task_priority = 5,
-    .uart_config = {
-        .port_num = PPP_UART_NUM,
-        .data_bits = UART_DATA_8_BITS,
-        .stop_bits = UART_STOP_BITS_1,
-        .parity = UART_PARITY_DISABLE,
-        .flow_control = ESP_MODEM_FLOW_CONTROL_NONE,
-        .source_clk = UART_SCLK_APB,
-        .baud_rate = 115200,
-        .tx_io_num = PPP_TX_PIN,
-        .rx_io_num = PPP_RX_PIN,
-        //.rts_io_num = 27, // RTS (Request to Send) - Not used since it is for flow control
-        //.cts_io_num = 23, // CTS (Clear to Send) - Not used since it is for flow control
-        .rx_buffer_size = 4096,
-        .tx_buffer_size = 512,
-        .event_queue_size = 30,
-    },
-};
+        .dte_buffer_size = 512,
+        .task_stack_size = 4096,
+        .task_priority = 5,
+        .uart_config = {
+            .port_num = PPP_UART_NUM,
+            .data_bits = UART_DATA_8_BITS,
+            .stop_bits = UART_STOP_BITS_1,
+            .parity = UART_PARITY_DISABLE,
+            .flow_control = ESP_MODEM_FLOW_CONTROL_NONE,
+            .source_clk = UART_SCLK_APB,
+            .baud_rate = 115200,
+            .tx_io_num = PPP_TX_PIN,
+            .rx_io_num = PPP_RX_PIN,
+            //.rts_io_num = 27, // RTS (Request to Send) - Not used since it is for flow control
+            //.cts_io_num = 23, // CTS (Clear to Send) - Not used since it is for flow control
+            .rx_buffer_size = 4096,
+            .tx_buffer_size = 512,
+            .event_queue_size = 30,
+        },
+    };
 
     // dce configuration
     // The APN name depends of the company that provides the service.
@@ -67,10 +71,9 @@ void dce_init(esp_modem_dce_t **dce, esp_netif_t **esp_netif){
 
     // should return a pointer of the modem module
     ESP_LOGI(TAG, "Initializing esp_modem for a generic module...");
-    *dce = esp_modem_new(&dte_config, &dce_config, *esp_netif);
-    // *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7000, &dte_config, &dce_config, esp_netif);
+    // *dce = esp_modem_new(&dte_config, &dce_config, *esp_netif);
+    *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7000, &dte_config, &dce_config, *esp_netif);
     assert(*dce);
-
 }
 
 esp_err_t set_pin(esp_modem_dce_t *dce, const char *pin)
@@ -201,9 +204,17 @@ esp_err_t sim_network_connection_get_status(void)
 }
 
 //
+
+bool check_registration_status(const char *data)
+{
+    const char *found = strstr(data, ",5");
+    return found != NULL;
+}
+
 void run_at(esp_modem_dce_t *dce, uint8_t count)
 {
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
         CHECK_ERR(esp_modem_sync(dce), ESP_LOGI(TAG, "OK"));
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -218,12 +229,30 @@ void run_at_ping(esp_modem_dce_t *dce)
 
     CHECK_ERR(esp_modem_at(dce, "AT+CPSMS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
     vTaskDelay(pdMS_TO_TICKS(1000));
+    CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Check preference mode
+    CHECK_ERR(esp_modem_at(dce, "AT+CNMP=2", data, 500), ESP_LOGI(TAG, "OK. %s", data));                        // Set preference to automatic mode
+    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Inquiring UE system information
+    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Check APN set
+    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT=1,\"IP\",\"onomondo\",\"0.0.0.0\",0,0", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Set the APN to onomondo
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Check the connections available
+    CHECK_ERR(esp_modem_at(dce, "AT+COPS=0", data, 500), ESP_LOGI(TAG, "OK. %s", data));                        // Set the modem to automatically chose the network
 
-    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));             // Inquiring UE system information
-    CHECK_ERR(esp_modem_at(dce, "AT+CNACT=0,1", data, 500), ESP_LOGI(TAG, "OK. %s", data));         // Activate the APP network
-    CHECK_ERR(esp_modem_at(dce, "AT+SNPDPID=0", data, 500), ESP_LOGI(TAG, "OK. %s", data));         // Select PDP index for PING
-    CHECK_ERR(esp_modem_at(dce, "AT+SNPING4=\"8.8.8.8\",3,16,1000", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Send IPv4 PING
-    // CHECK_ERR(esp_modem_at(dce, "AT+CNACT=0,0", data, 500), ESP_LOGI(TAG, "OK. %s", data));         // Deactivate the APP network
+    //TODO Close the network set the sock to 1 and open again
+    CHECK_ERR(esp_modem_at(dce, "AT+CSOCKSETPN=1", data, 500), ESP_LOGI(TAG, "OK. %s", data));                  // Set PDP 1 
+    CHECK_ERR(esp_modem_at(dce, "AT+NETOPEN?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Check open network
+    do
+    {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                     // Check the connections available
+        CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
+        CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                    // Check if it is registered
+        CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                       // Check APN set
+    } while (!check_registration_status(data));
+    CHECK_ERR(esp_modem_at(dce, "AT+CNACT=0,1", data, 500), ESP_LOGI(TAG, "OK. %s", data));                     // Activate the APP network
+    CHECK_ERR(esp_modem_at(dce, "AT+SNPDPID0", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Select PDP index for PING
+    CHECK_ERR(esp_modem_at(dce, "AT+SNPING4=\"8.8.8.8\",5,16,5000", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Send IPv4 PING
+    // CHECK_ERR(esp_modem_at(dce, "AT+CNACT=0,0", data, 500), ESP_LOGI(TAG, "OK. %s", data));                  // Deactivate the APP network
 }
 
 esp_err_t start_sim_network_module(void)
@@ -261,7 +290,8 @@ esp_err_t start_sim_network_module(void)
     dce_init(&sim_mod_dce, &esp_netif);
 
     // check pin configuration
-    if (strlen(CONFIG_APN_PIN) != 0){
+    if (strlen(CONFIG_APN_PIN) != 0)
+    {
         ESP_LOGW("START SIM_NETWORK MODULE - Set Pin - Check", "Entering in the set pin configuration...");
         ret_check = set_pin(sim_mod_dce, CONFIG_APN_PIN);
         if (ret_check != ESP_OK)
@@ -275,7 +305,7 @@ esp_err_t start_sim_network_module(void)
         }
     }
 
-    //Try to sync and communicate with the SIM Network Module
+    // Try to sync and communicate with the SIM Network Module
     run_at(sim_mod_dce, 3);
     run_at_ping(sim_mod_dce);
 
