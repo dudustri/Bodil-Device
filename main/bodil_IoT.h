@@ -18,7 +18,7 @@ void set_network_disconnected(bool);
     #include "client.h"
     #include "wifi_connection.h"
     #include "bluetooth.h"
-    #include "gsm.h"
+    #include "sim_network.h"
     #include "led_control_sim.h"
     #include "heat_pump_state.h"
     #include "machine_control.h"
@@ -29,7 +29,7 @@ void set_network_disconnected(bool);
 
     enum NetworkModuleUsed{
         WIFI,
-        GSM,
+        SIM_NETWORK,
         DEACTIVATED
     };
 

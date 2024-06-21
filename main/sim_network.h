@@ -1,17 +1,17 @@
-#ifndef GSM_H
-#define GSM_H
+#ifndef SIM_NETWORK_H
+#define SIM_NETWORK_H
 
 #include "esp_modem_api.h"
 
 // Public Function Declarations
-esp_err_t start_gsm_module(void);
-esp_err_t destroy_gsm_module(esp_modem_dce_t *, esp_netif_t *);
+esp_err_t start_sim_network_module(void);
+esp_err_t destroy_sim_network_module(esp_modem_dce_t *, esp_netif_t *);
 esp_err_t check_signal_quality(esp_modem_dce_t *);
-esp_err_t gsm_connection_get_status(void);
+esp_err_t sim_network_connection_get_status(void);
 
-    #ifdef INTERNAL_GSM
+    #ifdef INTERNAL_SIM_NETWORK
 
-        //GSM internal dependencies
+        //module internal dependencies
         #include <stdio.h>
         #include <string.h>
         #include "freertos/FreeRTOS.h"

@@ -30,7 +30,7 @@
 		"stdio.h": "c",
 		"bodil_iot.h": "c",
 		"wifi_connection.h": "c",
-		"gsm.h": "c",
+		"sim_network.h": "c",
 		"cstdlib": "c",
 		"esp_netif_ppp.h": "c",
 		"esp_modem_config.h": "c",
