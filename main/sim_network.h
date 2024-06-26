@@ -30,6 +30,7 @@ esp_err_t sim_network_connection_get_status(void);
         #include "lwip/err.h"
         #include "lwip/sys.h"
         #include "lwip/ip4_addr.h"
+        #include "lwip/netif.h"
 
         // Private Functions Declarations
         esp_err_t set_pin(esp_modem_dce_t *, const char *);
