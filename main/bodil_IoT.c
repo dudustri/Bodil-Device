@@ -34,8 +34,9 @@ bool is_connection_stabilished(enum NetworkModuleUsed *module)
         {
         case WIFI:
             return wifi_connection_get_status() == ESP_OK ? true : false;
+        //TODO: change back to check the connection status after solve the bug with the signal strength check
         case SIM_NETWORK:
-            return sim_network_connection_get_status() == ESP_OK ? true : false;
+            return true; // sim_network_connection_get_status() == ESP_OK ? true : false;
         default:
             ESP_LOGW("NETWORK CONNECTION CHECK", "Unexpected error when trying to identify the network module.");
             return false;
