@@ -35,7 +35,7 @@ bool is_connection_estabilished(enum NetworkModuleUsed *module)
             return wifi_connection_get_status() == ESP_OK ? true : false;
         //TODO: change back to check the connection status after solve the bug with the signal strength check
         case SIM_NETWORK_MODULE:
-            return true; // sim_network_connection_get_status() == ESP_OK ? true : false;
+            return pppos_is_connected(); // sim_network_connection_get_status() == ESP_OK ? true : false;
         default:
             ESP_LOGW(TAG_ICS, "Unexpected error when trying to identify the network module.");
             return false;
@@ -53,6 +53,7 @@ void periodic_heatpump_state_check_task(void *args)
 
     while (1)
     {
+        vTaskDelay(120000 / portTICK_PERIOD_MS);
         // check if connected before making the HTTP request
         if (is_connection_estabilished(request_info->module))
         {
@@ -264,10 +265,10 @@ void app_main(void)
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
     while (1)
     {
+        vTaskDelay((60000 * check_conn_minutes_cycle) / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG_MAIN, "%d minutes passed in the main thread", check_conn_minutes_cycle);
+
         handle_netif_mode(&customer_info, &netif_connected_module, &conn_preference);
         connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
-
-        vTaskDelay((60000 * check_conn_minutes_cycle) / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG_MAIN, "%d minutes passed in the main thread \n", check_conn_minutes_cycle);
     }
 }
