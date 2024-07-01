@@ -28,9 +28,11 @@ static const int DISCONNECT_BIT = BIT1;
 ------------------------- EVENT HANDLERS -------------------------
 ----------------------------------------------------------------*/
 
-static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data){
+static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
     ESP_LOGD(TAG, "IP event! %" PRId32, event_id);
-    if (event_id == IP_EVENT_PPP_GOT_IP) {
+    if (event_id == IP_EVENT_PPP_GOT_IP)
+    {
         esp_netif_dns_info_t dns_info;
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         esp_netif_t *netif = event->esp_netif;
@@ -48,15 +50,19 @@ static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id
         xEventGroupSetBits(event_group, CONNECT_BIT);
         pppos_connected = true;
         ESP_LOGI(TAG, "GOT ip event!!!");
-    } else if (event_id == IP_EVENT_PPP_LOST_IP) {
+    }
+    else if (event_id == IP_EVENT_PPP_LOST_IP)
+    {
         ESP_LOGI(TAG, "Modem Disconnect from PPP Server");
         xEventGroupSetBits(event_group, DISCONNECT_BIT);
         pppos_connected = false;
-    } else if (event_id == IP_EVENT_GOT_IP6) {
+    }
+    else if (event_id == IP_EVENT_GOT_IP6)
+    {
         ESP_LOGI(TAG, "GOT IPv6 event!");
         ip_event_got_ip6_t *event = (ip_event_got_ip6_t *)event_data;
         pppos_connected = true;
-        ESP_LOGI(TAG, "Got IPv6 address " IPV6STR, IPV62STR(event->ip6_info.ip));        
+        ESP_LOGI(TAG, "Got IPv6 address " IPV6STR, IPV62STR(event->ip6_info.ip));
     }
 }
 
@@ -66,10 +72,10 @@ static void on_ppp_changed(void *arg, esp_event_base_t event_base, int32_t event
     if (event_id == NETIF_PPP_ERRORUSER)
     {
         /* User interrupted event from esp-netif */
-        esp_netif_t *p_netif = *(esp_netif_t**)event_data;
+        esp_netif_t *p_netif = *(esp_netif_t **)event_data;
         ESP_LOGI("SIM_NETWORK - PPP - ESP MODEM", "User interrupted event from netif:%p", p_netif);
     }
-        else if(event_id == NETIF_PPP_ERRORCONNECT)
+    else if (event_id == NETIF_PPP_ERRORCONNECT)
     {
         ESP_LOGI(TAG, "NETIF_PPP_ERRORCONNECT");
         xEventGroupSetBits(event_group, DISCONNECT_BIT);
@@ -131,12 +137,11 @@ esp_err_t dce_init(esp_modem_dce_t **dce, esp_netif_t **netif)
     esp_modem_dce_config_t dce_config = {
         .apn = CONFIG_APN,
     };
-    ESP_LOGI(TAG, "1 - APN set: %s", dce_config.apn);
-    // should return a pointer of the modem module
+    ESP_LOGI(TAG, "APN set: %s", dce_config.apn);
     ESP_LOGI(TAG, "Initializing esp_modem for a generic module...");
     *dce = esp_modem_new(&dte_config, &dce_config, *netif);
     // *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7600, &dte_config, &dce_config, *netif);
-    
+
     // check pin configuration
     if (strlen(CONFIG_APN_PIN) != 0 && *dce)
     {
@@ -153,30 +158,29 @@ esp_err_t dce_init(esp_modem_dce_t **dce, esp_netif_t **netif)
             return err;
         }
     }
-    ESP_LOGI(TAG, "modem pointer: %p - %p",*dce, *netif);
+    ESP_LOGI(TAG, "modem pointer: %p - %p", *dce, *netif);
     return *dce ? ESP_OK : ESP_FAIL;
 }
-
 
 /*----------------------------------------------------------------
 ----------------------- OTHER STUFF LOW LVL ----------------------
 ----------------------------------------------------------------*/
 
 // BARE AT COMMANDS
-
+// TODO: remove this define and implement a global error check function in utils instead.
 #define CHECK_ERR(cmd, success_action)                                                     \
-     do                                                                                     \
-     {                                                                                      \
-         esp_err_t ret = cmd;                                                               \
-         if (ret == ESP_OK)                                                                 \
-         {                                                                                  \
-             success_action;                                                                \
-         }                                                                                  \
-         else                                                                               \
-         {                                                                                  \
-             ESP_LOGE(TAG, "Failed with %s", ret == ESP_ERR_TIMEOUT ? "TIMEOUT" : "ERROR"); \
-         }                                                                                  \
-     } while (0)
+    do                                                                                     \
+    {                                                                                      \
+        esp_err_t ret = cmd;                                                               \
+        if (ret == ESP_OK)                                                                 \
+        {                                                                                  \
+            success_action;                                                                \
+        }                                                                                  \
+        else                                                                               \
+        {                                                                                  \
+            ESP_LOGE(TAG, "Failed with %s", ret == ESP_ERR_TIMEOUT ? "TIMEOUT" : "ERROR"); \
+        }                                                                                  \
+    } while (0)
 
 bool check_registration_status(const char *data)
 {
@@ -201,60 +205,36 @@ void run_at_get_info(esp_modem_dce_t *dce)
     vTaskDelay(pdMS_TO_TICKS(1000));
     CHECK_ERR(esp_modem_at(dce, "AT+CPSMS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
     vTaskDelay(pdMS_TO_TICKS(1000));
-    CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Check preference mode
-    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Inquiring UE system information
-    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Check APN set
+    CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check preference mode
+    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Inquiring UE system information
+    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check APN set
     vTaskDelay(pdMS_TO_TICKS(1000));
-    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Check the connections available
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                     // Check the connections available
-    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
-    CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                    // Check if it is registered
-    CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                       // Check APN set
+    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check the connections available
+    CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check if it is registered
+    CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check APN set
 }
-
-
-// void run_at_ping(esp_modem_dce_t *dce)
-// {
-//     char data[BUF_SIZE];
-//     int rssi, ber;
-//     CHECK_ERR(esp_modem_get_signal_quality(dce, &rssi, &ber), ESP_LOGI(TAG, "OK. rssi=%d, ber=%d", rssi, ber));
-//     vTaskDelay(pdMS_TO_TICKS(1000));
-
-//     CHECK_ERR(esp_modem_at(dce, "AT+CPSMS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
-//     vTaskDelay(pdMS_TO_TICKS(1000));
-//     CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Check preference mode
-//     CHECK_ERR(esp_modem_at(dce, "AT+CNMP=2", data, 500), ESP_LOGI(TAG, "OK. %s", data));                        // Set preference to automatic mode
-//     CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Inquiring UE system information
-//     CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Check APN set
-//     CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT=1,\"IP\",\"onomondo\",\"0.0.0.0\",0,0", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Set the APN to onomondo
-//     vTaskDelay(pdMS_TO_TICKS(1000));
-//     CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                         // Check the connections available
-//     CHECK_ERR(esp_modem_at(dce, "AT+COPS=0", data, 500), ESP_LOGI(TAG, "OK. %s", data));                        // Set the modem to automatically chose the network
-
-//     //TODO Close the network set the sock to 1 and open again
-//     CHECK_ERR(esp_modem_at(dce, "AT+CSOCKSETPN=1", data, 500), ESP_LOGI(TAG, "OK. %s", data));                  // Set PDP 1 
-//     CHECK_ERR(esp_modem_at(dce, "AT+NETOPEN?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Check open network
-//     do
-//     {
-//         vTaskDelay(pdMS_TO_TICKS(1000));
-//         CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                     // Check the connections available
-//         CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
-//         CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                    // Check if it is registered
-//         CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));                       // Check APN set
-//     } while (!check_registration_status(data));
-//     CHECK_ERR(esp_modem_at(dce, "AT+CNACT=0,1", data, 500), ESP_LOGI(TAG, "OK. %s", data));                     // Activate the APP network
-//     CHECK_ERR(esp_modem_at(dce, "AT+SNPDPID0", data, 500), ESP_LOGI(TAG, "OK. %s", data));                      // Select PDP index for PING
-//     CHECK_ERR(esp_modem_at(dce, "AT+SNPING4=\"8.8.8.8\",5,16,5000", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Send IPv4 PING
-//     // CHECK_ERR(esp_modem_at(dce, "AT+CNACT=0,0", data, 500), ESP_LOGI(TAG, "OK. %s", data));                  // Deactivate the APP network
-// }
-
 
 /*----------------------------------------------------------------
 ------------------------- NETWORK MODEM --------------------------
 ----------------------------------------------------------------*/
 
-// CHECK THESE FUNCTIONS!!
+void network_module_power(void)
+{
+    ESP_LOGI(TAG, "Network module power pin - pulling down!");
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = 1 << SIM_POWER_PIN;
+    io_conf.pull_down_en = 0;
+    io_conf.pull_up_en = 0;
+    gpio_config(&io_conf);
+
+    gpio_set_level(SIM_POWER_PIN, 0);
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    gpio_set_level(SIM_POWER_PIN, 1);
+}
+
+// TODO: CHECK THESE FUNCTIONS!! - remove duplicate functions!!
 // ---------------------------------------------------------------
 bool modem_check_sync(esp_modem_dce_t *dce)
 {
@@ -273,12 +253,20 @@ bool modem_stop_network(esp_modem_dce_t *dce)
 
 void modem_reset(esp_modem_dce_t *dce)
 {
-    esp_modem_reset(dce);
+    esp_err_t err = esp_modem_reset(dce);
+    if( err != ESP_OK){
+        ESP_LOGE(TAG, "modem reset AT command error: %d", err);
+        ESP_LOGD(TAG, "switching the power off/on to hard reset!");
+        network_module_power();
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        network_module_power();
+    }
 }
 
 void modem_deinit_network(esp_modem_dce_t *dce)
 {
-    if (dce) {
+    if (dce)
+    {
         esp_modem_destroy(dce);
         dce = NULL;
     }
@@ -287,38 +275,29 @@ void modem_deinit_network(esp_modem_dce_t *dce)
 bool modem_check_signal(esp_modem_dce_t *dce)
 {
     int rssi, ber;
-    if (esp_modem_get_signal_quality(dce, &rssi, &ber) == ESP_OK) {
+    if (esp_modem_get_signal_quality(dce, &rssi, &ber) == ESP_OK)
+    {
+        ESP_LOGI(TAG, "signal quality ~ rssi: %d", rssi);
         return rssi != 99 && rssi > 5;
     }
     return false;
 }
 // -------------------------------------------------------------------------------
-// TODO: Adjust this function to start and restart the module pulling down the pin
-void network_module_power(void)
+
+void sim_modem_power_up(esp_modem_dce_t *dce)
 {
-    ESP_LOGI(TAG, "Network module power pin - pullin down!");
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = 1 << SIM_POWER_PIN;
-    io_conf.pull_down_en = 0;
-    io_conf.pull_up_en = 0;
-    gpio_config(&io_conf);
-
-    gpio_set_level(SIM_POWER_PIN, 0);
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    gpio_set_level(SIM_POWER_PIN, 1);
-}
-
-void sim_modem_power_up(esp_modem_dce_t *dce) {
     uint8_t tries = 0;
-    while(tries ++ < 3){
-        if (modem_check_sync(dce)) return;
-        vTaskDelay(pdMS_TO_TICKS(1000*tries));
+    while (tries++ < 3)
+    {
+        if (modem_check_sync(dce)){
+            return;
+        }
+        ESP_LOGI(TAG, "Error to sync with network module. Retries: %d /3", tries);
+        vTaskDelay(pdMS_TO_TICKS(1000 * tries));
     }
     network_module_power();
 
-    //Wait for network module to initialize (it takes a while)
+    // Wait for network module to initialize (it takes a while)
     vTaskDelay(pdMS_TO_TICKS(5000));
 }
 
@@ -328,6 +307,7 @@ esp_err_t destroy_sim_network_module(esp_modem_dce_t *dce, esp_netif_t *esp_neti
 
     ESP_LOGW("Destroy SIM_NETWORK Module", "Destroying the SIM_NETWORK component u.u");
     esp_modem_destroy(dce);
+    dce = NULL;
     stop_sim_network_status = esp_event_loop_delete_default();
     if (stop_sim_network_status != ESP_OK)
     {
@@ -335,6 +315,7 @@ esp_err_t destroy_sim_network_module(esp_modem_dce_t *dce, esp_netif_t *esp_neti
         return stop_sim_network_status;
     }
     esp_netif_destroy(esp_netif);
+    esp_netif = NULL;
     return stop_sim_network_status;
 }
 
@@ -381,32 +362,39 @@ esp_err_t sim_network_connection_get_status(void)
     return ret_check;
 }
 
+//TODO: Change this to only try to activate the sync and data mode. Transfer the stop network [set command mode] to the initialization of the module. 
 void start_network(esp_modem_dce_t *dce)
 {
     EventBits_t bits = 0;
-    while ((bits & CONNECT_BIT) == 0) {
-        if (!modem_check_sync(dce)) {
+    while ((bits & CONNECT_BIT) == 0)
+    {
+        if (!modem_check_sync(dce))
+        {
             ESP_LOGE(TAG, "Modem does not respond, maybe in DATA mode? ...exiting network mode");
             modem_stop_network(dce);
-            if (!modem_check_sync(dce)) {
+            if (!modem_check_sync(dce))
+            {
                 ESP_LOGE(TAG, "Modem does not respond to AT ...restarting");
                 modem_reset(dce);
                 ESP_LOGI(TAG, "Restarted");
             }
             continue;
         }
-        if (!modem_check_signal(dce)) {
+        if (!modem_check_signal(dce))
+        {
             ESP_LOGI(TAG, "Poor signal ...will check after 5s");
             vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
-        if (!modem_start_network(dce)) {
+        if (!modem_start_network(dce))
+        {
             ESP_LOGE(TAG, "Modem could not enter network mode ...will retry after 10s");
             vTaskDelay(pdMS_TO_TICKS(10000));
             continue;
         }
         bits = xEventGroupWaitBits(event_group, (DISCONNECT_BIT | CONNECT_BIT), pdTRUE, pdFALSE, pdMS_TO_TICKS(30000));
-        if (bits & DISCONNECT_BIT) {
+        if (bits & DISCONNECT_BIT)
+        {
             ESP_LOGE(TAG, "Modem got disconnected ...retrying");
             modem_stop_network(dce);
         }
@@ -482,23 +470,20 @@ esp_err_t start_sim_network_module(void)
     run_at(sim_mod_dce, 3);
     run_at_get_info(sim_mod_dce);
 
-    start_network(sim_mod_dce);
-
-
-    //TODO: Fix the check signal quality bug!! 
-
-    
     // check signal quality
-    // ret_check = sim_network_connection_get_status();
-    // if (ret_check != ESP_OK)
-    // {
-    //     ESP_LOGW(TAG_START, "SIGNAL QUALITY CHECK: Destroying the SIM_NETWORK module and set modem state to DEACTIVATED.");
-    //     if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
-    //     {
-    //         ESP_LOGE(TAG_START, "SIGNAL QUALITY CHECK: Error destroying the SIM_NETWORK module.");
-    //     }
-    //     return ret_check;
-    // }
+    ret_check = sim_network_connection_get_status();
+    if (ret_check != ESP_OK)
+    {
+        ESP_LOGW(TAG_START, "SIGNAL QUALITY CHECK: Destroying the SIM_NETWORK module and set modem state to DEACTIVATED.");
+        if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
+        {
+            ESP_LOGE(TAG_START, "SIGNAL QUALITY CHECK: Error destroying the SIM_NETWORK module.");
+        }
+        return ret_check;
+    }
+
+    // TODO: change this start_network to not get stuck and return a failure instead. The main thread should coordinate the trials.
+    start_network(sim_mod_dce);
 
     return ESP_OK;
 }
