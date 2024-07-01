@@ -28,9 +28,15 @@ void set_network_disconnected(bool);
     #include "mqtt_service.h"
 
     enum NetworkModuleUsed{
-        WIFI,
-        SIM_NETWORK,
+        WIFI_MODULE,
+        SIM_NETWORK_MODULE,
         DEACTIVATED
+    };
+
+    enum ConnectionPreference{
+        WIFI,
+        SIM,
+        ANY
     };
 
     typedef struct PeriodicRequestArgs {
@@ -42,9 +48,10 @@ void set_network_disconnected(bool);
 
     void periodic_heatpump_state_check_task(void *);
     PeriodicRequestArgs *prepare_task_args(const char *, const char *, char *, enum NetworkModuleUsed *);
-    void handle_netif_mode(const BodilCustomer *, enum NetworkModuleUsed *);
+    void handle_netif_mode(const BodilCustomer *, enum NetworkModuleUsed *, enum ConnectionPreference *conn_settings);
     void connection_status_handler(char *, bool *);
-    bool is_connection_stabilished(enum NetworkModuleUsed *);
+    bool is_connection_estabilished(enum NetworkModuleUsed *);
+    enum ConnectionPreference get_connection_preference(const char *); 
 
     #endif
 

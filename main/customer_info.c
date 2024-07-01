@@ -9,11 +9,11 @@ void init_customer_info(BodilCustomer *customer)
 
 void print_customer_info(const BodilCustomer *customer)
 {
-    ESP_LOGI("Customer Info ->", "Name: %s\n", customer->name);
-    ESP_LOGI("Customer Info ->", "Device ID: %d\n", customer->device_id);
-    ESP_LOGI("Customer Info ->", "SSID: %s\n", customer->ssid);
-    ESP_LOGI("Customer Info ->", "Password: %s\n", customer->pass);
-    ESP_LOGI("Customer Info ->", "API Key: %s\n", customer->api_key);
+    ESP_LOGD("Customer Info ->", "Name: %s\n", customer->name);
+    ESP_LOGD("Customer Info ->", "Device ID: %d\n", customer->device_id);
+    ESP_LOGD("Customer Info ->", "SSID: %s\n", customer->ssid);
+    ESP_LOGD("Customer Info ->", "Password: %s\n", customer->pass);
+    ESP_LOGD("Customer Info ->", "API Key: %s\n", customer->api_key);
 }
 
 void set_customer_info(BodilCustomer *customer, const char *name, int device_id, const char *ssid, const char *pass, const char *api_key)
