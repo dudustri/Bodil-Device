@@ -31,6 +31,7 @@ esp_err_t sim_network_connection_get_status(void);
         #include "lwip/sys.h"
         #include "lwip/ip4_addr.h"
         #include "lwip/netif.h"
+        #include "bodil_IoT.h"
 
         // Private Functions Declarations
         esp_err_t set_pin(esp_modem_dce_t *, const char *);
@@ -38,5 +39,6 @@ esp_err_t sim_network_connection_get_status(void);
     #endif
     
 bool pppos_is_connected(void);
+bool pppos_is_retrying_to_connect(void);
 
 #endif
