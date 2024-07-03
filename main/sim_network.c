@@ -11,9 +11,9 @@
 #define APN "onomondo"
 #define APN_PIN ""
 #define SIM_NETWORK_RETRIES_NUM 5
-#define START_NETWORK_RETRIES_NUM 3
+#define START_NETWORK_RETRIES_NUM 5
 #define SIM_POWER_UP_TRIES 3
-#define BUF_SIZE 1024
+#define BUF_SIZE 512
 #define MAX_ESP_INFO_SIZE 32
 
 const char *TAG = "Modem SIM Network";
@@ -26,6 +26,8 @@ static bool pppos_retrying_connection = false;
 static EventGroupHandle_t event_group = NULL;
 static const int CONNECT_BIT = BIT0;
 static const int DISCONNECT_BIT = BIT1;
+//TODO: add this to customer information
+float latitude, longitude;
 
 /*----------------------------------------------------------------
 ------------------------- EVENT HANDLERS -------------------------
@@ -43,21 +45,19 @@ void on_ip_lost(void)
         vTaskDelay(pdMS_TO_TICKS(1000 * retries));
         if (pppos_is_connected())
         {
+            ESP_LOGI(TAG, "reconnected!");
             pppos_retrying_connection = false;
             return;
         }
+        ESP_LOGI(TAG, "retrying to reconnect after lost the ip %d / %d", retries, SIM_NETWORK_RETRIES_NUM);
     } while (retries < SIM_NETWORK_RETRIES_NUM);
 
-        esp_err_t err = destroy_sim_network_module(sim_mod_dce, ppp_netif);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "destroy_sim_network_module faild with errno %d", err);
-        ESP_LOGW(TAG, "setting the state DEACTIVATED in the main thread anyways");
-    }
+    ESP_LOGW(TAG, "setting the state DEACTIVATED in the main thread");
     pppos_retrying_connection = false;
     pppos_connected = false;
     set_network_disconnected(false);
     ESP_LOGI(TAG, "sim modem destroyed successfully and the main thread now holds the DEACTIVATED status flag");
+    destroy_sim_network_module(sim_mod_dce, ppp_netif);
 };
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
@@ -250,16 +250,41 @@ void run_at_get_info(esp_modem_dce_t *dce)
     char data[BUF_SIZE];
     int rssi, ber;
     CHECK_ERR(esp_modem_get_signal_quality(dce, &rssi, &ber), ESP_LOGI(TAG, "OK. rssi=%d, ber=%d", rssi, ber));
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    CHECK_ERR(esp_modem_at(dce, "AT+CPSMS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check preference mode
-    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Inquiring UE system information
-    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check APN set
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));  // Check the connections available
-    CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check if it is registered
-    CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); // Check APN set
+    CHECK_ERR(esp_modem_at(dce, "AT+CPSMS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check Power Saving Modeching
+    CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check preference mode
+    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Inquiring UE system information
+    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));  // Check APN set
+    CHECK_ERR(esp_modem_at(dce, "AT+CPIN?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check SIM card ready
+    CHECK_ERR(esp_modem_at(dce, "AT+CFUN?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check functionality
+    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check the connections available
+    CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check if it is registered 1
+    CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check if it is registered 2
+}
+
+void run_at_start_gnss(esp_modem_dce_t *dce, int current_power_mode){
+    char data[BUF_SIZE];
+
+    if (current_power_mode == 0) esp_modem_set_gnss_power_mode(sim_mod_dce, 1);
+
+    /* TODO: Wrap this part in a function with a config parameter of the GNSS starting it cold, warm or hot. */
+
+    // ---------------------------------------------------------------------------------------------------------------
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    CHECK_ERR(esp_modem_at(dce, "AT+CGNSCOLD", data, 2000), ESP_LOGI(TAG, "OK. %s", data)); // Cold Start GNSS module
+    vTaskDelay(pdMS_TO_TICKS(10000));
+    // ---------------------------------------------------------------------------------------------------------------
+
+    CHECK_ERR(esp_modem_at(dce, "AT+CGNSMOD?", data, 500), ESP_LOGI(TAG, "OK. %s", data));  // Check CGNS work mode set
+    // TODO: Improve this loop and the waiting time and number of loops depends of the starting mode configured
+    for (int i = 0; i<6; i ++) {
+        CHECK_ERR(esp_modem_at(dce, "AT+CGNSINF", data, 500), ESP_LOGI(TAG, "OK. %s", data));   // Check if GPS info is ready for fetching
+        //TODO: Create function that parses the GPS info set latitude and longitude and breaks the loop (stop criteria (lat and long !=0))
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+    esp_modem_set_gnss_power_mode(sim_mod_dce, 0);
+    CHECK_ERR(esp_modem_at(dce, "AT+CFUN?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); 
+    CHECK_ERR(esp_modem_at(dce, "AT+CFUN=1,1", data, 500), ESP_LOGI(TAG, "OK. %s", data)); 
+    vTaskDelay(pdMS_TO_TICKS(15000));
 }
 
 /*----------------------------------------------------------------
@@ -322,9 +347,9 @@ void sim_module_power_up(esp_modem_dce_t *dce)
             return;
         }
         ESP_LOGI(TAG, "Error to sync with network module. Retries: %d / %d", tries, SIM_POWER_UP_TRIES);
-        vTaskDelay(pdMS_TO_TICKS(1000 * tries));
+        
         // Set sim to command mode since the problem can be that it is in data mode.
-        sim_module_stop_network(dce);
+        if (tries == 1) sim_module_stop_network(dce); else vTaskDelay(pdMS_TO_TICKS(2000));
     }
     network_module_power();
 
@@ -434,7 +459,7 @@ bool start_network(esp_modem_dce_t *dce)
     return false;
 }
 
-esp_err_t start_sim_network_module(void)
+esp_err_t start_sim_network_module(bool gnss_enabled)
 {
     esp_err_t ret_check;
     char imsi[MAX_ESP_INFO_SIZE] = {0};
@@ -442,6 +467,7 @@ esp_err_t start_sim_network_module(void)
     char operator_name[MAX_ESP_INFO_SIZE] = {0};
     char module_name[MAX_ESP_INFO_SIZE] = {0};
     int operator_act = 0;
+    int gnss_power_mode = 0;
 
     // Initialize esp_netif and default event loop
     ret_check = esp_netif_init(); // initiates network interface
@@ -491,10 +517,12 @@ esp_err_t start_sim_network_module(void)
     esp_modem_get_imei(sim_mod_dce, imei);
     esp_modem_get_operator_name(sim_mod_dce, operator_name, &operator_act);
     esp_modem_get_module_name(sim_mod_dce, module_name);
+    esp_modem_get_gnss_power_mode(sim_mod_dce, &gnss_power_mode);
     ESP_LOGI(TAG, "Module: %s", module_name);
     ESP_LOGI(TAG, "Operator: %s %d", operator_name, operator_act);
     ESP_LOGI(TAG, "IMEI: %s", imei);
     ESP_LOGI(TAG, "IMSI: %s", imsi);
+    ESP_LOGI(TAG, "GNSS Power Mode: %d", gnss_power_mode);
 
     esp_modem_set_apn(sim_mod_dce, CONFIG_APN);
 
@@ -502,6 +530,8 @@ esp_err_t start_sim_network_module(void)
     run_at(sim_mod_dce, 3);
     run_at_get_info(sim_mod_dce);
 
+    if (gnss_enabled) run_at_start_gnss(sim_mod_dce, gnss_power_mode);
+    
     if (!start_network(sim_mod_dce))
     {
         ESP_LOGW(TAG, "Data mode start failed. Destroying the SIM_NETWORK module.");
