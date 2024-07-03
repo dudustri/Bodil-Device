@@ -92,6 +92,8 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
 void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type, enum ConnectionPreference *conn_settings)
 {
     const char *TAG_NMH = "Netif Mode Handler";
+    // TODO develope this functionality
+    const bool gps_info_required = true; //(latitude == 0 && longitude == 0) || coordinates_refresh ? true : false; 
     if (*module_type == DEACTIVATED)
     {
         ESP_LOGD(TAG_NMH, "Checking customer information ~ ssid: %s, pass: %s", customer_info.ssid, customer_info.pass);
@@ -103,7 +105,7 @@ void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *mo
             return;
         }
         // SIM_NETWORK interface initialization
-        if (*conn_settings != WIFI && start_sim_network_module() == ESP_OK)
+        if (*conn_settings != WIFI && start_sim_network_module(gps_info_required) == ESP_OK)
         {
             ESP_LOGI(TAG_NMH, "Automatic connection established with the SIM_NETWORK module in data mode!");
             *module_type = SIM_NETWORK_MODULE;
