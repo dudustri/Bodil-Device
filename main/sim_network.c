@@ -1,4 +1,5 @@
 #define INTERNAL_SIM_NETWORK
+#define AT_COMMANDS_HANDLER
 #include "sim_network.h"
 
 // PPPoS Configuration
@@ -13,7 +14,7 @@
 #define SIM_NETWORK_RETRIES_NUM 5
 #define START_NETWORK_RETRIES_NUM 5
 #define SIM_POWER_UP_TRIES 3
-#define BUF_SIZE 512
+#define BUF_SIZE 128
 #define MAX_ESP_INFO_SIZE 32
 
 const char *TAG = "Modem SIM Network";
@@ -26,14 +27,12 @@ static bool pppos_retrying_connection = false;
 static EventGroupHandle_t event_group = NULL;
 static const int CONNECT_BIT = BIT0;
 static const int DISCONNECT_BIT = BIT1;
-//TODO: add this to customer information
+// TODO: add this to customer information
 float latitude, longitude;
 
 /*----------------------------------------------------------------
 ------------------------- EVENT HANDLERS -------------------------
 ----------------------------------------------------------------*/
-/* TODO: add a function that will handle the disconnect setting the modem to command mode and check the signal strength.
-Try it for a few minutes otherwise destroy and wait for the main thread call the start sim module function*/
 
 void on_ip_lost(void)
 {
@@ -106,7 +105,7 @@ static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id
 static void on_ppp_changed(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     // To more information about the PPP failure events check: https://github.com/espressif/esp-idf/blob/master/components/esp_netif/include/esp_netif_ppp.h
-    ESP_LOGI(TAG, "PPP state changed event %"PRIu32, event_id);
+    ESP_LOGI(TAG, "PPP state changed event %" PRIu32, event_id);
     if (event_id != 0)
     {
         if (event_id == NETIF_PPP_ERRORUSER)
@@ -121,7 +120,7 @@ static void on_ppp_changed(void *arg, esp_event_base_t event_base, int32_t event
         }
         else
         {
-            ESP_LOGE(TAG, "A specific NETIF_PPP error happened, please check (esp_netif_ppp_status_event_t) -> ID: %"PRIu32, event_id);
+            ESP_LOGE(TAG, "A specific NETIF_PPP error happened, please check (esp_netif_ppp_status_event_t) -> ID: %" PRIu32, event_id);
         }
         xEventGroupSetBits(event_group, DISCONNECT_BIT);
         return;
@@ -211,85 +210,139 @@ esp_err_t dce_init(esp_modem_dce_t **dce, esp_netif_t **netif)
 }
 
 /*----------------------------------------------------------------
------------------------ OTHER STUFF LOW LVL ----------------------
+------------------ BARE AT & MODEM API COMMANDS ------------------
 ----------------------------------------------------------------*/
 
-// BARE AT COMMANDS
-// TODO: remove this define and implement a global error check function in utils instead.
-#define CHECK_ERR(cmd, success_action)                                                     \
-    do                                                                                     \
-    {                                                                                      \
-        esp_err_t ret = cmd;                                                               \
-        if (ret == ESP_OK)                                                                 \
-        {                                                                                  \
-            success_action;                                                                \
-        }                                                                                  \
-        else                                                                               \
-        {                                                                                  \
-            ESP_LOGE(TAG, "Failed with %s", ret == ESP_ERR_TIMEOUT ? "TIMEOUT" : "ERROR"); \
-        }                                                                                  \
-    } while (0)
-
-bool check_registration_status(const char *data)
-{
-    const char *found = strstr(data, ",5");
-    return found != NULL;
-}
-
-void run_at(esp_modem_dce_t *dce, uint8_t count)
-{
-    for (int i = 0; i < count; i++)
-    {
-        CHECK_ERR(esp_modem_sync(dce), ESP_LOGI(TAG, "OK"));
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
-void run_at_get_info(esp_modem_dce_t *dce)
+void get_module_connection_info(esp_modem_dce_t *dce)
 {
     char data[BUF_SIZE];
     int rssi, ber;
-    CHECK_ERR(esp_modem_get_signal_quality(dce, &rssi, &ber), ESP_LOGI(TAG, "OK. rssi=%d, ber=%d", rssi, ber));
-    CHECK_ERR(esp_modem_at(dce, "AT+CPSMS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check Power Saving Modeching
-    CHECK_ERR(esp_modem_at(dce, "AT+CNMP?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check preference mode
-    CHECK_ERR(esp_modem_at(dce, "AT+CPSI?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Inquiring UE system information
-    CHECK_ERR(esp_modem_at(dce, "AT+CGDCONT?", data, 500), ESP_LOGI(TAG, "OK. %s", data));  // Check APN set
-    CHECK_ERR(esp_modem_at(dce, "AT+CPIN?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check SIM card ready
-    CHECK_ERR(esp_modem_at(dce, "AT+CFUN?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check functionality
-    CHECK_ERR(esp_modem_at(dce, "AT+COPS?", data, 500), ESP_LOGI(TAG, "OK. %s", data));     // Check the connections available
-    CHECK_ERR(esp_modem_at(dce, "AT+CEREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check if it is registered 1
-    CHECK_ERR(esp_modem_at(dce, "AT+CGREG?", data, 500), ESP_LOGI(TAG, "OK. %s", data));    // Check if it is registered 2
+    int signal_info_size = 2;
+    const char *rssi_name = "rssi";
+    const char *ber_name = "ber";
+    void *signal_data[] = {&signal_info_size, (void *)rssi_name, &rssi, (void *)ber_name, &ber};
+
+    handle_at_command_log(esp_modem_get_signal_quality(dce, &rssi, &ber), success_action_int, signal_data);
+    handle_at_command_log(esp_modem_at(dce, "AT+CPSMS?", data, 500), success_action_data_buffer, data);   // Check Power Saving Modeching
+    handle_at_command_log(esp_modem_at(dce, "AT+CNMP?", data, 500), success_action_data_buffer, data);    // Check preference mode
+    handle_at_command_log(esp_modem_at(dce, "AT+CPSI?", data, 500), success_action_data_buffer, data);    // Inquiring UE system information
+    handle_at_command_log(esp_modem_at(dce, "AT+CGDCONT?", data, 500), success_action_data_buffer, data); // Check APN set
+    handle_at_command_log(esp_modem_at(dce, "AT+CPIN?", data, 500), success_action_data_buffer, data);    // Check SIM card ready
+    handle_at_command_log(esp_modem_at(dce, "AT+CFUN?", data, 500), success_action_data_buffer, data);    // Check functionality
+    handle_at_command_log(esp_modem_at(dce, "AT+COPS?", data, 500), success_action_data_buffer, data);    // Check the connections available
+    handle_at_command_log(esp_modem_at(dce, "AT+CEREG?", data, 500), success_action_data_buffer, data);   // Check if it is registered 1
+    handle_at_command_log(esp_modem_at(dce, "AT+CGREG?", data, 500), success_action_data_buffer, data);   // Check if it is registered 2
 }
 
-void run_at_start_gnss(esp_modem_dce_t *dce, int current_power_mode){
+esp_err_t turn_off_gnss(esp_modem_dce_t *dce, int *gnss_power_mode)
+{
+
+    char data[BUF_SIZE];
+    esp_err_t response = esp_modem_set_gnss_power_mode(sim_mod_dce, 0);
+
+    if (response == ESP_OK && esp_modem_get_gnss_power_mode(dce, gnss_power_mode) == ESP_OK)
+    {
+        handle_at_command_log(esp_modem_at(dce, "AT+CFUN?", data, 500), success_action_data_buffer, data);
+        handle_at_command_log(esp_modem_at(dce, "AT+CFUN=1,1", data, 500), success_action_data_buffer, data);
+        vTaskDelay(pdMS_TO_TICKS(15000));
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Error powering off the GNSS module. Error: %d", response);
+    }
+    return response;
+}
+
+void get_gnss_initial_data(esp_modem_dce_t *dce, int *gnss_power_mode)
+{
     char data[BUF_SIZE];
 
-    if (current_power_mode == 0) esp_modem_set_gnss_power_mode(sim_mod_dce, 1);
+    if (*gnss_power_mode == 0)
+        esp_modem_set_gnss_power_mode(sim_mod_dce, 1);
 
     /* TODO: Wrap this part in a function with a config parameter of the GNSS starting it cold, warm or hot. */
-
     // ---------------------------------------------------------------------------------------------------------------
     vTaskDelay(pdMS_TO_TICKS(5000));
-    CHECK_ERR(esp_modem_at(dce, "AT+CGNSCOLD", data, 2000), ESP_LOGI(TAG, "OK. %s", data)); // Cold Start GNSS module
+    ESP_LOGI(TAG, "Starting GNSS in Cold Mode.");
+    handle_at_command_log(esp_modem_at(dce, "AT+CGNSCOLD", data, 2000), success_action_data_buffer, data); // Cold Start GNSS module
     vTaskDelay(pdMS_TO_TICKS(10000));
     // ---------------------------------------------------------------------------------------------------------------
 
-    CHECK_ERR(esp_modem_at(dce, "AT+CGNSMOD?", data, 500), ESP_LOGI(TAG, "OK. %s", data));  // Check CGNS work mode set
+    handle_at_command_log(esp_modem_at(dce, "AT+CGNSMOD?", data, 500), success_action_data_buffer, data); // Check CGNS work mode set
     // TODO: Improve this loop and the waiting time and number of loops depends of the starting mode configured
-    for (int i = 0; i<6; i ++) {
-        CHECK_ERR(esp_modem_at(dce, "AT+CGNSINF", data, 500), ESP_LOGI(TAG, "OK. %s", data));   // Check if GPS info is ready for fetching
-        //TODO: Create function that parses the GPS info set latitude and longitude and breaks the loop (stop criteria (lat and long !=0))
+    for (int i = 0; i < 20; i++)
+    {
+        handle_at_command_log(esp_modem_at(dce, "AT+CGNSINF", data, 500), success_action_data_buffer, data); // Check if GPS info is ready for fetching
+        // TODO: Create function that parses the GPS info set latitude and longitude and breaks the loop (stop criteria (lat and long !=0))
         vTaskDelay(pdMS_TO_TICKS(10000));
     }
-    esp_modem_set_gnss_power_mode(sim_mod_dce, 0);
-    CHECK_ERR(esp_modem_at(dce, "AT+CFUN?", data, 500), ESP_LOGI(TAG, "OK. %s", data)); 
-    CHECK_ERR(esp_modem_at(dce, "AT+CFUN=1,1", data, 500), ESP_LOGI(TAG, "OK. %s", data)); 
-    vTaskDelay(pdMS_TO_TICKS(15000));
+    turn_off_gnss(dce, gnss_power_mode);
+}
+
+void get_basic_module_info(esp_modem_dce_t *dce, int *gnss_power_mode)
+{
+    char imsi[MAX_ESP_INFO_SIZE] = {0};
+    char imei[MAX_ESP_INFO_SIZE] = {0};
+    char operator_name[MAX_ESP_INFO_SIZE] = {0};
+    char module_name[MAX_ESP_INFO_SIZE] = {0};
+    int operator_act = 0;
+
+    int info_size = 2;
+    const char *gnss_pm_log = "GNSS Power Mode";
+    const char *imsi_log = "IMSI";
+    const char *imei_log = "IMEI";
+    const char *module_name_log = "Module";
+    const char *operator_name_log = "Operator";
+    const char *operator_act_log = "Operator Act";
+    uint8_t operator_bit_mask = 0x02; // binary -> 0b00000010
+    void *log_args_data[] = {&info_size, &operator_bit_mask, (void *)operator_name_log, operator_name, (void *)operator_act_log, &operator_act};
+
+    handle_at_command_log(esp_modem_get_operator_name(dce, operator_name, &operator_act), success_action_mix_by_mask, log_args_data);
+
+    info_size = 1;
+    log_args_data[1] = (void *)imsi_log;
+    log_args_data[2] = (void *)imsi;
+
+    handle_at_command_log(esp_modem_get_imsi(dce, imsi), success_action_raw_char, log_args_data);
+
+    log_args_data[1] = (void *)imei_log;
+    log_args_data[2] = (void *)imei;
+
+    handle_at_command_log(esp_modem_get_imei(dce, imei), success_action_raw_char, log_args_data);
+
+    log_args_data[1] = (void *)module_name_log;
+    log_args_data[2] = (void *)module_name;
+
+    handle_at_command_log(esp_modem_get_module_name(dce, module_name), success_action_raw_char, log_args_data);
+
+    log_args_data[1] = (void *)gnss_pm_log;
+    log_args_data[2] = gnss_power_mode;
+
+    handle_at_command_log(esp_modem_get_gnss_power_mode(dce, gnss_power_mode), success_action_int, log_args_data);
 }
 
 /*----------------------------------------------------------------
 ------------------------- NETWORK MODEM --------------------------
 ----------------------------------------------------------------*/
+
+bool modem_check_sync(esp_modem_dce_t *dce)
+{
+    return esp_modem_sync(dce) == ESP_OK;
+}
+
+bool synchronize_module(esp_modem_dce_t *dce, uint8_t count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (modem_check_sync(dce))
+        {
+            ESP_LOGI(TAG, "OK - Module Synchronized!");
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    return false;
+}
 
 void network_module_power(void)
 {
@@ -307,11 +360,6 @@ void network_module_power(void)
     gpio_set_level(SIM_POWER_PIN, 1);
 }
 
-bool modem_check_sync(esp_modem_dce_t *dce)
-{
-    return esp_modem_sync(dce) == ESP_OK;
-}
-
 // Set the modem to data mode and no command can be passed due this state.
 bool sim_module_start_network(esp_modem_dce_t *dce)
 {
@@ -325,7 +373,7 @@ bool sim_module_stop_network(esp_modem_dce_t *dce)
 }
 
 void sim_module_reset(esp_modem_dce_t *dce)
-{   
+{
     esp_err_t err = esp_modem_reset(dce);
     if (err != ESP_OK)
     {
@@ -337,24 +385,31 @@ void sim_module_reset(esp_modem_dce_t *dce)
     }
 }
 
-void sim_module_power_up(esp_modem_dce_t *dce)
+esp_err_t sim_module_power_up(esp_modem_dce_t *dce)
 {
     uint8_t tries = 0;
+
     while (tries++ < SIM_POWER_UP_TRIES)
     {
-        if (modem_check_sync(dce))
+        if (synchronize_module(dce, 1))
         {
-            return;
+            return ESP_OK;
         }
         ESP_LOGI(TAG, "Error to sync with network module. Retries: %d / %d", tries, SIM_POWER_UP_TRIES);
-        
+
         // Set sim to command mode since the problem can be that it is in data mode.
-        if (tries == 1) sim_module_stop_network(dce); else vTaskDelay(pdMS_TO_TICKS(2000));
+        if (tries == 1)
+            sim_module_stop_network(dce);
+        else
+            vTaskDelay(pdMS_TO_TICKS(2000));
     }
     network_module_power();
 
     // Wait for network module to initialize (it takes a while)
     vTaskDelay(pdMS_TO_TICKS(5000));
+
+    // Try to sync and get info from the SIM Network Module
+    return synchronize_module(sim_mod_dce, 5) ? ESP_OK : ESP_FAIL;
 }
 
 esp_err_t destroy_sim_network_module(esp_modem_dce_t *dce, esp_netif_t *esp_netif)
@@ -418,7 +473,7 @@ esp_err_t sim_network_connection_get_status(void)
     return ret_check;
 }
 
-bool start_network(esp_modem_dce_t *dce)
+bool start_network(esp_modem_dce_t *dce, int *gnss_power_mode)
 {
     uint8_t retries = 0;
     EventBits_t bits = 0;
@@ -441,6 +496,13 @@ bool start_network(esp_modem_dce_t *dce)
             ESP_LOGI(TAG, "The signal is too weak to continue with the network connection...");
             continue;
         }
+        if (*gnss_power_mode != 0)
+        {
+            if (turn_off_gnss(dce, gnss_power_mode) != ESP_OK)
+            {
+                continue;
+            }
+        }
         if (!sim_module_start_network(dce))
         {
             ESP_LOGE(TAG, "Modem could not enter in the network mode ...");
@@ -462,11 +524,6 @@ bool start_network(esp_modem_dce_t *dce)
 esp_err_t start_sim_network_module(bool gnss_enabled)
 {
     esp_err_t ret_check;
-    char imsi[MAX_ESP_INFO_SIZE] = {0};
-    char imei[MAX_ESP_INFO_SIZE] = {0};
-    char operator_name[MAX_ESP_INFO_SIZE] = {0};
-    char module_name[MAX_ESP_INFO_SIZE] = {0};
-    int operator_act = 0;
     int gnss_power_mode = 0;
 
     // Initialize esp_netif and default event loop
@@ -511,30 +568,28 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
     }
 
     ESP_LOGI(TAG, "Powering up and starting the sync with the SIM network module ...");
-    sim_module_power_up(sim_mod_dce);
-
-    esp_modem_get_imsi(sim_mod_dce, imsi);
-    esp_modem_get_imei(sim_mod_dce, imei);
-    esp_modem_get_operator_name(sim_mod_dce, operator_name, &operator_act);
-    esp_modem_get_module_name(sim_mod_dce, module_name);
-    esp_modem_get_gnss_power_mode(sim_mod_dce, &gnss_power_mode);
-    ESP_LOGI(TAG, "Module: %s", module_name);
-    ESP_LOGI(TAG, "Operator: %s %d", operator_name, operator_act);
-    ESP_LOGI(TAG, "IMEI: %s", imei);
-    ESP_LOGI(TAG, "IMSI: %s", imsi);
-    ESP_LOGI(TAG, "GNSS Power Mode: %d", gnss_power_mode);
-
-    esp_modem_set_apn(sim_mod_dce, CONFIG_APN);
-
-    // Try to sync (extra checks) and get info from the SIM Network Module
-    run_at(sim_mod_dce, 3);
-    run_at_get_info(sim_mod_dce);
-
-    if (gnss_enabled) run_at_start_gnss(sim_mod_dce, gnss_power_mode);
-    
-    if (!start_network(sim_mod_dce))
+    if (sim_module_power_up(sim_mod_dce) != ESP_OK)
     {
-        ESP_LOGW(TAG, "Data mode start failed. Destroying the SIM_NETWORK module.");
+        ESP_LOGE(TAG, "Power up procedure failed.");
+        if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error destroying the SIM_NETWORK module.");
+        }
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "Module energized and syncronized successfully.");
+
+    get_basic_module_info(sim_mod_dce, &gnss_power_mode);
+    get_module_connection_info(sim_mod_dce);
+
+    if (gnss_enabled)
+    {
+        get_gnss_initial_data(sim_mod_dce, &gnss_power_mode);
+    }
+
+    if (!start_network(sim_mod_dce, &gnss_power_mode))
+    {
+        ESP_LOGE(TAG, "Data mode start failed. Destroying the SIM_NETWORK module.");
         if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
         {
             ESP_LOGE(TAG, "Error destroying the SIM_NETWORK module.");
