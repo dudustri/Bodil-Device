@@ -11,6 +11,8 @@ esp_err_t sim_network_connection_get_status(void);
 
     #ifdef INTERNAL_SIM_NETWORK
 
+        #define LOCATION_MANAGER // allows location changes
+
         //module internal dependencies
         #include <stdio.h>
         #include <string.h>

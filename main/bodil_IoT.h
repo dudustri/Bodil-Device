@@ -7,6 +7,8 @@ void set_network_disconnected(bool);
 
     #ifdef INTERNAL_BODIL_MAIN_MODULE
 
+    #define CUSTOMER_MANAGER // allows customer object modification
+
     #include <stdio.h>
     #include <stdlib.h>
     #include "freertos/FreeRTOS.h"
