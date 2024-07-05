@@ -15,6 +15,8 @@ int stop_bluetooth_service(void);
 
     #ifdef INTERNAL_BLUETOOTH
 
+    #define CUSTOMER_MANAGER // allows customer object modification
+
     //Bluetooth internal dependencies
     #include <stdio.h>
     #include <stdlib.h>

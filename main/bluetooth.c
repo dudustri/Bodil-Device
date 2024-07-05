@@ -156,6 +156,9 @@ static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, stru
     return 0;
 }
 
+/* TODO(IMPORTANT): add a service to write the CONNECTION PREFERENCE using the struct ConnectionPreference
+   Also add a handler with MQTT for it and to set wifi credentials */
+
 // Service configs
 uint16_t name_callback_argument = GATT_WRITE_NAME_SERVICE_UUID;
 uint16_t ssid_callback_argument = GATT_WRITE_SSID_SERVICE_UUID;

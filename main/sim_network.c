@@ -27,8 +27,7 @@ static bool pppos_retrying_connection = false;
 static EventGroupHandle_t event_group = NULL;
 static const int CONNECT_BIT = BIT0;
 static const int DISCONNECT_BIT = BIT1;
-// TODO: add this to customer information
-float latitude, longitude;
+
 
 /*----------------------------------------------------------------
 ------------------------- EVENT HANDLERS -------------------------
@@ -188,23 +187,6 @@ esp_err_t dce_init(esp_modem_dce_t **dce, esp_netif_t **netif)
     *dce = esp_modem_new(&dte_config, &dce_config, *netif);
     // *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7600, &dte_config, &dce_config, *netif);
 
-    // TODO: check this if statement if is needed due to the implementation of set_pin
-    //  check pin configuration
-    if (strlen(CONFIG_APN_PIN) != 0 && *dce)
-    {
-        esp_err_t err;
-        ESP_LOGW(TAG, "SET PIN - CHECK: Entering in the set pin configuration...");
-        err = set_pin(*dce, CONFIG_APN_PIN);
-        if (err != ESP_OK)
-        {
-            ESP_LOGE(TAG, "SET PIN - CHECK: Not chipset or pin config was identified. Destroying SIM_NETWORK module...");
-            if (destroy_sim_network_module(*dce, *netif) != ESP_OK)
-            {
-                ESP_LOGE(TAG, "SET PIN - CHECK: Error destroying the SIM_NETWORK module.");
-            }
-            return err;
-        }
-    }
     ESP_LOGI(TAG, "modem pointer: %p - %p", *dce, *netif);
     return *dce ? ESP_OK : ESP_FAIL;
 }
@@ -567,6 +549,7 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
         return ret_check;
     }
 
+    // Energize the module
     ESP_LOGI(TAG, "Powering up and starting the sync with the SIM network module ...");
     if (sim_module_power_up(sim_mod_dce) != ESP_OK)
     {
@@ -579,14 +562,34 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
     }
     ESP_LOGI(TAG, "Module energized and syncronized successfully.");
 
+    // Retrieve and display module information
     get_basic_module_info(sim_mod_dce, &gnss_power_mode);
     get_module_connection_info(sim_mod_dce);
 
+    // Check pin configuration
+    if (strlen(CONFIG_APN_PIN) != 0 && sim_mod_dce)
+    {
+        esp_err_t err;
+        ESP_LOGW(TAG, "SET PIN - CHECK: Entering in the set pin configuration...");
+        err = set_pin(sim_mod_dce, CONFIG_APN_PIN);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "SET PIN - CHECK: Not chipset or pin config was identified. Destroying SIM_NETWORK module...");
+            if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
+            {
+                ESP_LOGE(TAG, "SET PIN - CHECK: Error destroying the SIM_NETWORK module.");
+            }
+            return err;
+        }
+    }
+
+    // Start gnss data to retrieve location information
     if (gnss_enabled)
     {
         get_gnss_initial_data(sim_mod_dce, &gnss_power_mode);
     }
 
+    // Start network inspecting operational data and setting the modem to data mode
     if (!start_network(sim_mod_dce, &gnss_power_mode))
     {
         ESP_LOGE(TAG, "Data mode start failed. Destroying the SIM_NETWORK module.");
