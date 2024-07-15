@@ -1,8 +1,6 @@
 #define MQTT_PROTOCOL
 #include "mqtt_service.h"
 
-// TODO: REMOVE HARDCODED DEVICE ID AND USE THE ONE FROM CUSTOMER INFO HANDLING THE STRING FORMATION
-
 /* TODO: feature! - INVESTIGATE MQTT 5!!!
     _____________________________________________________
     ---- study this implementation and create broker ----
@@ -21,6 +19,8 @@ QoS types:
 TODO: since we are using QoS 1 for the most cases, add an spam filter when the first message hits the device!
 
 */
+
+esp_mqtt_client_handle_t client;
 
 extern const uint8_t client_cert_start[] asm("_binary_client_crt_start");
 extern const uint8_t client_cert_end[] asm("_binary_client_crt_end");
@@ -54,7 +54,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     ESP_LOGI(MQTT_TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
 
     esp_mqtt_event_handle_t event = event_data;
-    esp_mqtt_client_handle_t client = event->client;
+    esp_mqtt_client_handle_t event_client = event->client;
     int message_status;
 
     switch ((esp_mqtt_event_id_t)event_id)
@@ -62,20 +62,20 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_CONNECTED");
         // This one should send the device ID to this topic and the server will receive and create a MQTT_TAG in the list of monitored devices.
-        message_status = esp_mqtt_client_publish(client, "bodil/connect", payload_registration, 0, 1, 0);
+        message_status = esp_mqtt_client_publish(event_client, "bodil/connect", payload_registration, 0, 1, 0);
         ESP_LOGI("MQTT HANDLER", "sent publish successful, message_status=%d", message_status);
 
         // Subscribe to the all devices (global) topic
-        message_status = esp_mqtt_client_subscribe(client, "bodil/all", 0);
+        message_status = esp_mqtt_client_subscribe(event_client, "bodil/all", 0);
         ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
         // Subscribe to its own topic to receive messages from the server individually.
-        message_status = esp_mqtt_client_subscribe(client, topic_unique, 1);
+        message_status = esp_mqtt_client_subscribe(event_client, topic_unique, 1);
         ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
         /* 
         Example of unsubscribe - it should trigger a function in the server to remove this device from the list
-            message_status = esp_mqtt_client_unsubscribe(client, "bodil/disconnect");
+            message_status = esp_mqtt_client_unsubscribe(event_client, "bodil/disconnect");
             ESP_LOGI("MQTT HANDLER", "sent unsubscribe successful, message_status=%d", message_status); 
         */
 
@@ -95,6 +95,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(MQTT_TAG, "MQTT_EVENT_DATA");
+        //TODO: remove these printf statements (switch for logging)
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
 
@@ -105,7 +106,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             send_control_signal(get_current_energy_consumptionState()->state);
         }
         // Send back to the server a confirmation server
-        message_status = esp_mqtt_client_publish(client, topic_confirmation, payload_confirmation, 0, 1, 0);
+        message_status = esp_mqtt_client_publish(event_client, topic_confirmation, payload_confirmation, 0, 1, 0);
         ESP_LOGI(MQTT_TAG, "sent publish successful, message_status=%d", message_status);
         break;
     case MQTT_EVENT_ERROR:
@@ -134,7 +135,7 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
     */
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = broker_url,
-        .broker.verification.certificate = (const char *)broker_cert_start,
+        .broker.verification.certificate = (const char *)broker_certnt_start,
         .broker.verification.certificate_len = broker_cert_end - broker_cert_start,
         .broker.verification.skip_cert_common_name_check = true, // TODO: careful about this declaration <- set to false
         .credentials = {
@@ -149,13 +150,7 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
             },
         }};
 
-    // TODO: printing here the certificates for inspection - remove it in production
-    ESP_LOGW("CA DEBUG", "%s", mqtt_cfg.broker.verification.certificate);
-    ESP_LOGW("Client Certificate DEBUG", "%s", mqtt_cfg.credentials.authentication.certificate);
-    ESP_LOGW("Client Key DEBUG", "%s", mqtt_cfg.credentials.authentication.key);
-    ESP_LOGW("Address", "%s", broker_url);
-
-    esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
+    client = esp_mqtt_client_init(&mqtt_cfg);
     if (!client)
     {
         ESP_LOGE(MQTT_TAG, "Failed to initialize client");
@@ -175,9 +170,17 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
     }
 }
 
-void mqtt_service_start(const char *broker_url, const char *broker_user, const char *broker_pass)
+esp_mqtt_client_handle_t * mqtt_service_start(const char *broker_url, const char *broker_user, const char *broker_pass)
 {
     populate_standard_topic_and_payload();
     mqtt_client(broker_url, broker_user, broker_pass);
-    return;
+    return &client;
+}
+
+esp_err_t suspend_mqtt_service(esp_mqtt_client_handle_t * client){
+    return esp_mqtt_client_stop(*client);
+}
+
+esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t * client){
+    return esp_mqtt_client_start(*client);
 }

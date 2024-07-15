@@ -1,13 +1,10 @@
 #ifndef BODIL_IOT_H
 #define BODIL_IOT_H
 
-#include <stdbool.h>
-
-void set_network_disconnected(bool);
-
     #ifdef INTERNAL_BODIL_MAIN_MODULE
 
     #define CUSTOMER_MANAGER // allows customer object modification
+    #define CONN_HANDLER_INTERNAL_ACCESS // allows access to the connection handlers
 
     #include <stdio.h>
     #include <stdlib.h>
@@ -28,18 +25,7 @@ void set_network_disconnected(bool);
     #include "non_volatile_memory.h"
     #include "nvs_dotenv.h"
     #include "mqtt_service.h"
-
-    enum NetworkModuleUsed{
-        WIFI_MODULE,
-        SIM_NETWORK_MODULE,
-        DEACTIVATED
-    };
-
-    enum ConnectionPreference{
-        WIFI,
-        SIM,
-        ANY
-    };
+    #include "conn_handlers.h"
 
     typedef struct PeriodicRequestArgs {
         const char *service_url;
@@ -50,11 +36,6 @@ void set_network_disconnected(bool);
 
     void periodic_heatpump_state_check_task(void *);
     PeriodicRequestArgs *prepare_task_args(const char *, const char *, char *, enum NetworkModuleUsed *);
-    void handle_netif_mode(const BodilCustomer *, enum NetworkModuleUsed *, enum ConnectionPreference *conn_settings);
-    void connection_status_handler(char *, bool *);
-    bool is_connection_estabilished(enum NetworkModuleUsed *);
-    enum ConnectionPreference get_connection_preference(const char *); 
-
     #endif
 
 #endif

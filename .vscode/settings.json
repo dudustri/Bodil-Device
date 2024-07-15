@@ -48,7 +48,10 @@
 		"uart.h": "c",
 		"time.h": "c",
 		"esp_event.h": "c",
-		"stddef.h": "c"
+		"stddef.h": "c",
+		"esp_modem_dce_config.h": "c",
+		"conn_handlers.h": "c",
+		"mqtt_service.h": "c"
 	},
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": true

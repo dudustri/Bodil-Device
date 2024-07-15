@@ -1,7 +1,11 @@
 #ifndef MQTT_SERVICE_H
 #define MQTT_SERVICE_H
 
-    void mqtt_service_start(const char *, const char *, const char *);
+#include "mqtt_client.h"
+
+esp_mqtt_client_handle_t * mqtt_service_start(const char *, const char *, const char *);
+esp_err_t suspend_mqtt_service(esp_mqtt_client_handle_t *);
+esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t *);
 
     #ifdef MQTT_PROTOCOL
 
@@ -31,7 +35,6 @@
         #include "lwip/netdb.h"
 
         #include "esp_log.h"
-        #include "mqtt_client.h"
 
         #include "customer_info.h"
         #include "heat_pump_state.h"

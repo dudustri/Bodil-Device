@@ -3,44 +3,10 @@
 
 #define BLE_DEVICE_NAME "BodilBox"
 
-enum NetworkModuleUsed netif_connected_module = DEACTIVATED;
 bool bluetooth_active = false;
 extern int retry_conn_num;
 TaskHandle_t requestHandler = NULL;
-
-// TODO: create a connection utils file and move the functions related to it
-/* --------------------------------------------------------------------------
-   -------------------------------------------------------------------------- */
-
-void set_network_disconnected(bool conn)
-{
-    if (!conn)
-    {
-        netif_connected_module = DEACTIVATED;
-    }
-    return;
-}
-
-bool is_connection_estabilished(enum NetworkModuleUsed *module)
-{
-    const char *TAG_ICS = "ESTABILISHED CONNECTION";
-    ESP_LOGD(TAG_ICS, "module: %d", *module);
-    if (*module == DEACTIVATED)
-        return false;
-    else
-    {
-        switch (*module)
-        {
-        case WIFI_MODULE:
-            return wifi_connection_get_status() == ESP_OK ? true : false;
-        case SIM_NETWORK_MODULE:
-            return (pppos_is_connected() || pppos_is_retrying_to_connect());
-        default:
-            ESP_LOGW(TAG_ICS, "Unexpected error when trying to identify the network module.");
-            return false;
-        }
-    }
-}
+esp_mqtt_client_handle_t * mqtt_client = NULL;
 
 void periodic_heatpump_state_check_task(void *args)
 {
@@ -89,101 +55,6 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
     return args;
 }
 
-void handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type, enum ConnectionPreference *conn_settings)
-{
-    const char *TAG_NMH = "Netif Mode Handler";
-    // TODO develope this functionality
-    const bool gps_info_required = true; //(latitude == 0 && longitude == 0) || coordinates_refresh ? true : false; 
-    if (*module_type == DEACTIVATED)
-    {
-        ESP_LOGD(TAG_NMH, "Checking customer information ~ ssid: %s, pass: %s", customer_info.ssid, customer_info.pass);
-        // WIFI interface initialization
-        if (is_credentials_set(customer) && *conn_settings != SIM && wifi_connection_start(customer_info.ssid, customer_info.pass) == ESP_OK)
-        {
-            ESP_LOGI(TAG_NMH, "Automatic connection established with the Wi-Fi module in station mode!");
-            *module_type = WIFI_MODULE;
-            return;
-        }
-        // SIM_NETWORK interface initialization
-        if (*conn_settings != WIFI && start_sim_network_module(gps_info_required) == ESP_OK)
-        {
-            ESP_LOGI(TAG_NMH, "Automatic connection established with the SIM_NETWORK module in data mode!");
-            *module_type = SIM_NETWORK_MODULE;
-            return;
-        }
-        ESP_LOGW(TAG_NMH, "Entering in standby mode since neither module could stabilish a network connection...");
-    }
-}
-
-void connection_status_handler(char *ble_name, bool *ble_active)
-{
-    const char *TAG_CSH = "Connection Status Handler";
-    if ( netif_connected_module != DEACTIVATED && !*ble_active){
-        ESP_LOGI(TAG_CSH, "The connection is stable!");
-        return;
-    }
-    else if (netif_connected_module == DEACTIVATED && !*ble_active)
-    {
-        if (initialize_bluetooth_service(ble_name) == 0)
-        {
-            *ble_active = true;
-            if (requestHandler != NULL)
-            {
-                ESP_LOGW(TAG_CSH, "Server request thread suspended.");
-                vTaskSuspend(requestHandler);
-                return;
-            }
-        }
-        else{
-            ESP_LOGE(TAG_CSH, "Error initializing Bluetooth service.");
-        }
-    }
-    else if (netif_connected_module != DEACTIVATED && *ble_active)
-    {
-        if (stop_bluetooth_service() == 0)
-        {
-            *ble_active = false;
-            if (requestHandler != NULL)
-            {
-                ESP_LOGI(TAG_CSH, "Server request thread resumed!");
-                vTaskResume(requestHandler);
-                return;
-            }
-            // TODO: add a routine here to try to create a new task to make the requests.
-            ESP_LOGW(TAG_CSH, "Unexpected behaviour! No request task was created in the background!");
-            return;
-        }
-        else
-        {
-            ESP_LOGE(TAG_CSH, "An error happened when stopping the BLE service...");
-            return;
-        }
-    }
-    ESP_LOGI(TAG_CSH, "The connection problem wasn't solved and the status did not change. Keep running the BLE service...");
-    return;
-}
-
-enum ConnectionPreference get_connection_preference(const char *preference) 
-{
-    const char *TAG_GCP = "Get Connection Preference";
-
-    if (preference == NULL) {
-        ESP_LOGW(TAG_GCP, "no preference specified - setting ANY connection as default.\n");
-        return ANY;
-    }
-
-    if (strcmp(preference, "WIFI") == 0) {
-        return WIFI;
-    } else if (strcmp(preference, "SIM") == 0) {
-        return SIM;
-    } else if (strcmp(preference, "ANY") == 0) {
-        return ANY;
-    } else {
-        ESP_LOGW(TAG_GCP, "Unknown connection preference: %s - setting ANY connection as default.\n", preference);
-        return ANY;
-    }
-}
-
 /* --------------------------------------------------------------------------
    -------------------------------------------------------------------------- */
 
@@ -197,7 +68,7 @@ void app_main(void)
     ESP_LOGI(TAG_MAIN, "Startup...");
     ESP_LOGI(TAG_MAIN, "Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG_MAIN, "IDF version: %s", esp_get_idf_version());
-    esp_log_level_set("*", ESP_LOG_DEBUG);
+    esp_log_level_set("*", ESP_LOG_INFO);
 
     esp_err_t ret;
 
@@ -239,20 +110,22 @@ void app_main(void)
         save_to_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));
     }
 
+    enum NetworkModuleUsed * netif_connected_module = start_conn_handlers();
+
     led_init();
     heat_pump_state_init();
     machine_control_init();
 
     // TEST MQTT
-    handle_netif_mode(&customer_info, &netif_connected_module, &conn_preference);
-    connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
-    // mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
+    handle_netif_mode(&customer_info, netif_connected_module, &conn_preference);
+    
+    mqtt_client = mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first or using the mqtt register return
 
     // TODO: move this to a new function
     // Creates a periodic task that calls get_heatpump_set_state
-    PeriodicRequestArgs *args = prepare_task_args(service_url, api_header_name, customer_info.api_key, &netif_connected_module);
+    PeriodicRequestArgs *args = prepare_task_args(service_url, api_header_name, customer_info.api_key, netif_connected_module);
     if (args != NULL)
     {
         xTaskCreate(&periodic_heatpump_state_check_task, "periodic_heatpump_state_check", 3200, args, 3, &requestHandler);
@@ -261,6 +134,8 @@ void app_main(void)
     {
         ESP_LOGE(TAG_MAIN, "Periodic Requests Task - failed to initialize the arguments struct\n");
     }
+
+    connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active, &requestHandler, mqtt_client);
     /*  _____________________________________________________
         ----- core loop keeping the main thread running -----
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
@@ -269,9 +144,9 @@ void app_main(void)
         vTaskDelay((60000 * check_conn_minutes_cycle) / portTICK_PERIOD_MS);
         ESP_LOGI(TAG_MAIN, "%d minutes passed in the main thread", check_conn_minutes_cycle);
 
-        if(!is_connection_estabilished(&netif_connected_module)){
-            handle_netif_mode(&customer_info, &netif_connected_module, &conn_preference);
+        if(!is_connection_estabilished(netif_connected_module)){
+            handle_netif_mode(&customer_info, netif_connected_module, &conn_preference);
         }
-        connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active);
+        connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active, &requestHandler, mqtt_client);
     }
 }

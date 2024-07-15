@@ -29,6 +29,8 @@ typedef struct BodilCustomer
 
 extern struct BodilCustomer customer_info;
 
+bool is_credentials_set(const BodilCustomer *);
+
     #ifdef INTERNAL_CUSTOMER
         #define CUSTOMER_MANAGER
         #define LOCATION_MANAGER
@@ -38,7 +40,6 @@ extern struct BodilCustomer customer_info;
     void print_customer_info(const BodilCustomer *);
     void set_customer_info(BodilCustomer *, const char *, int, const char *, const char *, const char *);
     void init_customer_info(BodilCustomer *);
-    bool is_credentials_set(const BodilCustomer *);
     #endif
 
     #ifdef LOCATION_MANAGER
