@@ -43,7 +43,7 @@ StateData *heat_pump_state_init(void);
     #include <time.h>
     
     // Private functions
-    void set_energy_consumption_state(StateData*, unsigned long long, enum EnergyConsumptionState);
+    bool set_energy_consumption_state(StateData*, unsigned long long, enum EnergyConsumptionState);
     char * match_state_from_tokens_object(int);
 
     #endif

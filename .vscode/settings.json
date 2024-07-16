@@ -55,5 +55,5 @@
 	},
 	"editor.formatOnSave": false,
 	"editor.formatOnPaste": true,
-	"C_Cpp.clang_format_fallbackStyle": "Visual Studio"
+	"C_Cpp.clang_format_fallbackStyle": "Visual Studio",
 }

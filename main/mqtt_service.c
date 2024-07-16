@@ -29,14 +29,14 @@ extern const uint8_t client_key_end[] asm("_binary_client_key_end");
 extern const uint8_t broker_cert_start[] asm("_binary_ca_crt_start");
 extern const uint8_t broker_cert_end[] asm("_binary_ca_crt_end");
 
-static const char *MQTT_TAG = "MQTT_SERVICE";
+static const char *TAG_MQTT = "MQTT_SERVICE";
 
 static int populate_standard_topic_and_payload(void)
 {
     // TODO: add error check
     snprintf(topic_unique, MAX_TOPIC_LENGTH, "bodil/device/%d", customer_info.device_id);
     snprintf(topic_confirmation, MAX_TOPIC_LENGTH, "bodil/device/%d/confirmation", customer_info.device_id);
-    snprintf(payload_confirmation, MAX_PAYLOAD_LENGTH, "{\"device\": \"%d\" {\"status\": \"command received\"}", customer_info.device_id);
+    snprintf(payload_confirmation, MAX_PAYLOAD_LENGTH, "{\"device\": \"%d\" {\"status\": \"command received\"}}", customer_info.device_id);
     snprintf(payload_registration, MAX_PAYLOAD_LENGTH, "{\"deviceID\": \"%d\"}", customer_info.device_id);
     return 0;
 }
@@ -46,13 +46,13 @@ static void log_error_if_nonzero(const char *message, int error_code)
 {
     if (error_code != 0)
     {
-        ESP_LOGE(MQTT_TAG, "Last error %s: 0x%x", message, error_code);
+        ESP_LOGE(TAG_MQTT, "Last error %s: 0x%x", message, error_code);
     }
 }
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
-    ESP_LOGI(MQTT_TAG, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
+    ESP_LOGI(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
 
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t event_client = event->client;
@@ -62,7 +62,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_CONNECTED");
-        // This one should send the device ID to this topic and the server will receive and create a MQTT_TAG in the list of monitored devices.
+        // This one should send the device ID to this topic and the server will receive and create a TAG_MQTT in the list of monitored devices.
         message_status = esp_mqtt_client_publish(event_client, "bodil/connect", payload_registration, 0, 1, 0);
         ESP_LOGI("MQTT HANDLER", "sent publish successful, message_status=%d", message_status);
 
@@ -89,13 +89,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_SUBSCRIBED, message_status=%d", event->msg_id);
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
-        ESP_LOGI(MQTT_TAG, "MQTT_EVENT_UNSUBSCRIBED, message_status=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, message_status=%d", event->msg_id);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(MQTT_TAG, "MQTT_EVENT_PUBLISHED, message_status=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_PUBLISHED, message_status=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
-        ESP_LOGI(MQTT_TAG, "MQTT_EVENT_DATA");
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
         // TODO: remove these printf statements (switch for logging)
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
@@ -105,23 +105,25 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         if (process_heat_pump_energy_state_response(truncate_event_data(event->data)))
         {
             send_control_signal(get_current_energy_consumptionState()->state);
+            // Send back to the server a confirmation server
+            message_status = esp_mqtt_client_publish(event_client, topic_confirmation, payload_confirmation, 0, 1, 0);
+            // ESP_LOGI(TAG_MQTT, "confirmation sent publish successful, message_status=%d", message_status);
+        } else{
+            ESP_LOGW(TAG_MQTT, "Data received is not valid. No confirmation will be sent.");
         }
-        // Send back to the server a confirmation server
-        message_status = esp_mqtt_client_publish(event_client, topic_confirmation, payload_confirmation, 0, 1, 0);
-        ESP_LOGI(MQTT_TAG, "sent publish successful, message_status=%d", message_status);
         break;
     case MQTT_EVENT_ERROR:
-        ESP_LOGI(MQTT_TAG, "MQTT_EVENT_ERROR");
+        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
         if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
         {
             log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
             log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
             log_error_if_nonzero("captured as transport's socket errno", event->error_handle->esp_transport_sock_errno);
-            ESP_LOGE(MQTT_TAG, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+            ESP_LOGE(TAG_MQTT, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
         }
         break;
     default:
-        ESP_LOGW(MQTT_TAG, "Other event id:%d", event->event_id);
+        ESP_LOGW(TAG_MQTT, "Other event id:%d", event->event_id);
         break;
     }
 }
@@ -136,7 +138,7 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
     */
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = broker_url,
-        .broker.verification.certificate = (const char *)broker_certnt_start,
+        .broker.verification.certificate = (const char *)broker_cert_start,
         .broker.verification.certificate_len = broker_cert_end - broker_cert_start,
         .broker.verification.skip_cert_common_name_check = true, // TODO: careful about this declaration <- set to false
         .credentials = {
@@ -154,19 +156,19 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
     client = esp_mqtt_client_init(&mqtt_cfg);
     if (!client)
     {
-        ESP_LOGE(MQTT_TAG, "Failed to initialize client");
+        ESP_LOGE(TAG_MQTT, "Failed to initialize client");
         return;
     }
     err = esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     if (err != ESP_OK)
     {
-        ESP_LOGE(MQTT_TAG, "Failed to register the event handlers to the initialized client");
+        ESP_LOGE(TAG_MQTT, "Failed to register the event handlers to the initialized client");
         return;
     }
     esp_mqtt_client_start(client);
     if (err != ESP_OK)
     {
-        ESP_LOGE(MQTT_TAG, "Failed to start the mqtt service!");
+        ESP_LOGE(TAG_MQTT, "Failed to start the mqtt service!");
         return;
     }
 }

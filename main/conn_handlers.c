@@ -82,7 +82,6 @@ void connection_status_handler(char *ble_name, bool *ble_active, TaskHandle_t *r
             }
             if (*mqtt_client != NULL)
             {
-                ESP_LOGW(TAG_CSH, "IM HEREEEEEEEEEEEEE");
                 if (suspend_mqtt_service(mqtt_client) == ESP_OK)
                 {
                     ESP_LOGW(TAG_CSH, "MQTT client suspended.");
