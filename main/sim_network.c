@@ -28,7 +28,6 @@ static EventGroupHandle_t event_group = NULL;
 static const int CONNECT_BIT = BIT0;
 static const int DISCONNECT_BIT = BIT1;
 
-
 /*----------------------------------------------------------------
 ------------------------- EVENT HANDLERS -------------------------
 ----------------------------------------------------------------*/

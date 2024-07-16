@@ -6,7 +6,7 @@
 bool bluetooth_active = false;
 extern int retry_conn_num;
 TaskHandle_t requestHandler = NULL;
-esp_mqtt_client_handle_t * mqtt_client = NULL;
+esp_mqtt_client_handle_t *mqtt_client = NULL;
 
 void periodic_heatpump_state_check_task(void *args)
 {
@@ -60,7 +60,7 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
 
 void app_main(void)
 {
-    const char * TAG_MAIN = "MAIN THREAD";
+    const char *TAG_MAIN = "MAIN THREAD";
     const uint8_t check_conn_minutes_cycle = 1;
     /*  _____________________________________________________
         --------------Initialization procedure:--------------
@@ -110,7 +110,7 @@ void app_main(void)
         save_to_nvs("storage", "customer", &customer_info, sizeof(BodilCustomer));
     }
 
-    enum NetworkModuleUsed * netif_connected_module = start_conn_handlers();
+    enum NetworkModuleUsed *netif_connected_module = start_conn_handlers();
 
     led_init();
     heat_pump_state_init();
@@ -118,7 +118,7 @@ void app_main(void)
 
     // TEST MQTT
     handle_netif_mode(&customer_info, netif_connected_module, &conn_preference);
-    
+
     mqtt_client = mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
 
     // TODO: create a function to retrieve the api key if is empty! -> Create a endpoint in the server side first or using the mqtt register return
@@ -144,7 +144,8 @@ void app_main(void)
         vTaskDelay((60000 * check_conn_minutes_cycle) / portTICK_PERIOD_MS);
         ESP_LOGI(TAG_MAIN, "%d minutes passed in the main thread", check_conn_minutes_cycle);
 
-        if(!is_connection_estabilished(netif_connected_module)){
+        if (!is_connection_estabilished(netif_connected_module))
+        {
             handle_netif_mode(&customer_info, netif_connected_module, &conn_preference);
         }
         connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active, &requestHandler, mqtt_client);

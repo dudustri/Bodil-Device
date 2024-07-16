@@ -27,9 +27,9 @@ void update_buffer(void)
     }
     snprintf(cached_device_info_buffer, INFO_BUFFER_SIZE, "Device Information:\n Name: %s\n DeviceID: %d\n SSID: %s\n Password: %s\n API Key: %s\n",
              customer_info.name, customer_info.device_id, customer_info.ssid, customer_info.pass, customer_info.api_key);
- 
+
     info_size = strlen(cached_device_info_buffer);
-    ble_read_package_numbers = (int)(ceil((float)info_size/BYTES_PER_BLE_PACKET));
+    ble_read_package_numbers = (int)(ceil((float)info_size / BYTES_PER_BLE_PACKET));
 }
 
 void initialize_buffer_cache(void)
@@ -123,7 +123,7 @@ static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gat
 static int device_write_handler(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     uint16_t ble_message_buffer_size = ctxt->om->om_len + 1;
-    char data [ble_message_buffer_size];
+    char data[ble_message_buffer_size];
     memset(data, 0, ble_message_buffer_size);
     if (arg == NULL)
     {

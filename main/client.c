@@ -8,7 +8,8 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     {
     case HTTP_EVENT_ON_DATA:
         ESP_LOGI("CLIENT HANDLER - ", "HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
-        if(process_heat_pump_energy_state_response(truncate_event_data((char *)event->data))) send_control_signal(get_current_energy_consumptionState()->state);
+        if (process_heat_pump_energy_state_response(truncate_event_data((char *)event->data)))
+            send_control_signal(get_current_energy_consumptionState()->state);
         break;
     case HTTP_EVENT_ERROR:
         ESP_LOGE("CLIENT HANDLER - ", "HTTP_EVENT_ERROR: %.*s\n", event->data_len, (char *)event->data);
@@ -20,8 +21,8 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     return ESP_OK;
 }
 
-//TODO: find a way to pass the customer object to compose the request and the api key
-void get_heatpump_set_state(const char * service_url, const char * api_header, const char * api_key)//const BodilCustomer *customer)
+// TODO: find a way to pass the customer object to compose the request and the api key
+void get_heatpump_set_state(const char *service_url, const char *api_header, const char *api_key) // const BodilCustomer *customer)
 {
     esp_http_client_config_t config_get = {
         .url = service_url,
@@ -32,8 +33,9 @@ void get_heatpump_set_state(const char * service_url, const char * api_header, c
     esp_http_client_handle_t client = esp_http_client_init(&config_get);
     esp_http_client_set_header(client, api_header, api_key);
     esp_err_t err = esp_http_client_perform(client);
-    if (err != ESP_OK) {
-        ESP_LOGE("HTTP CLIENT PERFORM","HTTP request failed: %d\n", err);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE("HTTP CLIENT PERFORM", "HTTP request failed: %d\n", err);
         set_led_state(RED);
     }
     esp_http_client_cleanup(client);

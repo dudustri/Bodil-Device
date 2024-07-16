@@ -31,8 +31,9 @@ extern const uint8_t broker_cert_end[] asm("_binary_ca_crt_end");
 
 static const char *MQTT_TAG = "MQTT_SERVICE";
 
-static int populate_standard_topic_and_payload(void){
-    //TODO: add error check
+static int populate_standard_topic_and_payload(void)
+{
+    // TODO: add error check
     snprintf(topic_unique, MAX_TOPIC_LENGTH, "bodil/device/%d", customer_info.device_id);
     snprintf(topic_confirmation, MAX_TOPIC_LENGTH, "bodil/device/%d/confirmation", customer_info.device_id);
     snprintf(payload_confirmation, MAX_PAYLOAD_LENGTH, "{\"device\": \"%d\" {\"status\": \"command received\"}", customer_info.device_id);
@@ -73,10 +74,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         message_status = esp_mqtt_client_subscribe(event_client, topic_unique, 1);
         ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
-        /* 
+        /*
         Example of unsubscribe - it should trigger a function in the server to remove this device from the list
             message_status = esp_mqtt_client_unsubscribe(event_client, "bodil/disconnect");
-            ESP_LOGI("MQTT HANDLER", "sent unsubscribe successful, message_status=%d", message_status); 
+            ESP_LOGI("MQTT HANDLER", "sent unsubscribe successful, message_status=%d", message_status);
         */
 
         break;
@@ -95,7 +96,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(MQTT_TAG, "MQTT_EVENT_DATA");
-        //TODO: remove these printf statements (switch for logging)
+        // TODO: remove these printf statements (switch for logging)
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
 
@@ -170,17 +171,19 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
     }
 }
 
-esp_mqtt_client_handle_t * mqtt_service_start(const char *broker_url, const char *broker_user, const char *broker_pass)
+esp_mqtt_client_handle_t *mqtt_service_start(const char *broker_url, const char *broker_user, const char *broker_pass)
 {
     populate_standard_topic_and_payload();
     mqtt_client(broker_url, broker_user, broker_pass);
     return &client;
 }
 
-esp_err_t suspend_mqtt_service(esp_mqtt_client_handle_t * client){
+esp_err_t suspend_mqtt_service(esp_mqtt_client_handle_t *client)
+{
     return esp_mqtt_client_stop(*client);
 }
 
-esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t * client){
+esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t *client)
+{
     return esp_mqtt_client_start(*client);
 }

@@ -53,6 +53,7 @@
 		"conn_handlers.h": "c",
 		"mqtt_service.h": "c"
 	},
-	"editor.formatOnSave": true,
-	"editor.formatOnPaste": true
+	"editor.formatOnSave": false,
+	"editor.formatOnPaste": true,
+	"C_Cpp.clang_format_fallbackStyle": "Visual Studio"
 }

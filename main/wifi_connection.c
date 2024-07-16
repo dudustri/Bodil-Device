@@ -23,7 +23,8 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
         retry_conn_num = 0;
         break;
     case WIFI_EVENT_STA_DISCONNECTED:
-        if(status_connected){
+        if (status_connected)
+        {
             status_connected = false;
             ESP_LOGI(TAG_WEV, "WiFi disconected\n");
             if (retry_conn_num < 5)
@@ -33,7 +34,8 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
                 vTaskDelay(1000 * retry_conn_num / portTICK_PERIOD_MS);
                 esp_wifi_connect();
                 esp_err_t wifi_check = wifi_connection_get_status();
-                if(wifi_check == ESP_OK) status_connected = true;
+                if (wifi_check == ESP_OK)
+                    status_connected = true;
                 break;
             }
             destroy_wifi_module(netif_pointer);

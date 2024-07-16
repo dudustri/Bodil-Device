@@ -1,7 +1,7 @@
 
 #include "led_control_sim.h"
 
-/* TODO: 
+/* TODO:
  - use this function in a smarter way to deliver info about the network, communication, normal operation and issues.
 */
 enum LedState led_state = DARK;

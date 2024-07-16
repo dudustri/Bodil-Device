@@ -105,7 +105,7 @@ void connection_status_handler(char *ble_name, bool *ble_active, TaskHandle_t *r
         if (stop_bluetooth_service() == 0)
         {
             *ble_active = false;
-                if (*requestHandler != NULL)
+            if (*requestHandler != NULL)
             {
                 ESP_LOGI(TAG_CSH, "Server request thread resumed!");
                 vTaskResume(*requestHandler);
