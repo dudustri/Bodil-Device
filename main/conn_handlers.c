@@ -36,8 +36,9 @@ bool is_connection_estabilished(enum NetworkModuleUsed *module)
 esp_err_t handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUsed *module_type, enum ConnectionPreference *conn_settings)
 {
     const char *TAG_NMH = "Netif Mode Handler";
-    // TODO develope this functionality
+    // TODO develop this functionality
     const bool gps_info_required = false; //(latitude == 0 && longitude == 0) || coordinates_refresh ? true : false;
+    set_led_state(ESTABILISHING_CONNECTION_LED);
     if (*module_type == DEACTIVATED)
     {
         ESP_LOGD(TAG_NMH, "Checking customer information ~ ssid: %s, pass: %s", customer_info.ssid, customer_info.pass);
@@ -46,6 +47,8 @@ esp_err_t handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUse
         {
             ESP_LOGI(TAG_NMH, "Automatic connection established with the Wi-Fi module in station mode!");
             *module_type = WIFI_MODULE;
+            set_led_state(WIFI_LED);
+            set_led_state(CONNECTED_LED);
             return ESP_OK;
         }
         // SIM_NETWORK interface initialization
@@ -53,6 +56,8 @@ esp_err_t handle_netif_mode(const BodilCustomer *customer, enum NetworkModuleUse
         {
             ESP_LOGI(TAG_NMH, "Automatic connection established with the SIM_NETWORK module in data mode!");
             *module_type = SIM_NETWORK_MODULE;
+            set_led_state(SIM_LED);
+            set_led_state(CONNECTED_LED);
             return ESP_OK;
         }
         ESP_LOGW(TAG_NMH, "Entering in standby mode since neither module could stabilish a network connection...");
@@ -75,6 +80,7 @@ void connection_status_handler(char *ble_name, bool *ble_active, TaskHandle_t *r
         if (initialize_bluetooth_service(ble_name) == 0)
         {
             *ble_active = true;
+            set_led_state(BLE_LED);
             if (*requestHandler != NULL)
             {
                 ESP_LOGW(TAG_CSH, "Server request thread suspended.");
@@ -134,6 +140,7 @@ void connection_status_handler(char *ble_name, bool *ble_active, TaskHandle_t *r
             return;
         }
     }
+    set_led_state(BLE_LED);
     ESP_LOGI(TAG_CSH, "The connection problem wasn't solved and the status did not change. Keep running the BLE service...");
     return;
 }

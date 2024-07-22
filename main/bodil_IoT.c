@@ -23,17 +23,12 @@ void periodic_heatpump_state_check_task(void *args)
         if (is_connection_estabilished(request_info->module))
         {
             get_heatpump_set_state(request_info->service_url, request_info->api_header, request_info->api_key);
-            set_led_state(BLUE);
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-            set_led_state(DARK);
             vTaskDelay(30000 / portTICK_PERIOD_MS);
         }
         else
         {
             ESP_LOGW(TAG_PHSC, "Module not connected to network or with a weak signal. Waiting 30 seconds to execute a new request...\n");
-            set_led_state(RED);
             vTaskDelay(30000 / portTICK_PERIOD_MS);
-            set_led_state(DARK);
             continue;
         }
 
@@ -60,6 +55,8 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
 
 void app_main(void)
 {
+    machine_control_init();
+    
     const char *TAG_MAIN = "MAIN THREAD";
     const uint8_t check_conn_minutes_cycle = 1;
     /*  _____________________________________________________
@@ -71,6 +68,9 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_INFO);
 
     esp_err_t ret;
+
+    led_init();
+    set_led_state(INIT_LED);
 
     ESP_ERROR_CHECK(nvs_dotenv_load());
 
@@ -112,11 +112,8 @@ void app_main(void)
 
     enum NetworkModuleUsed *netif_connected_module = start_conn_handlers();
 
-    led_init();
     heat_pump_state_init();
-    machine_control_init();
 
-    // TEST MQTT
     handle_netif_mode(&customer_info, netif_connected_module, &conn_preference);
 
     mqtt_client = mqtt_service_start(default_broker_mqtt_url, broker_username, broker_pass);
@@ -136,6 +133,8 @@ void app_main(void)
     }
 
     connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active, &requestHandler, mqtt_client);
+    set_led_state(ACTIVE_LED);
+
     /*  _____________________________________________________
         ----- core loop keeping the main thread running -----
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */

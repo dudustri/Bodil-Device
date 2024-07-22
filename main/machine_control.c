@@ -8,6 +8,9 @@ void machine_control_init(void)
         .mode = GPIO_MODE_OUTPUT,
     };
     gpio_config(&io_conf);
+
+    gpio_set_level(SMART_GRID_CONTROLLER_PIN_1, 1);
+    gpio_set_level(SMART_GRID_CONTROLLER_PIN_2, 1);
 }
 
 void send_control_signal(enum EnergyConsumptionState machine_state)
