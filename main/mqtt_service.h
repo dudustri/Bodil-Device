@@ -6,6 +6,7 @@
 esp_mqtt_client_handle_t * mqtt_service_start(const char *, const char *, const char *);
 esp_err_t suspend_mqtt_service(esp_mqtt_client_handle_t *);
 esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t *);
+esp_err_t send_healthcheck();
 
     #ifdef MQTT_PROTOCOL
 
@@ -38,18 +39,21 @@ esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t *);
 
         #include "customer_info.h"
         #include "heat_pump_state.h"
-        #include "led_control_sim.h"
+        #include "led_control.h"
         #include "machine_control.h"
         #include "utils.h"
 
         char topic_unique[MAX_TOPIC_LENGTH];
         char topic_confirmation[MAX_TOPIC_LENGTH];
+        char topic_healthcheck[MAX_TOPIC_LENGTH];
         char payload_confirmation[MAX_PAYLOAD_LENGTH];
         char payload_registration[MAX_PAYLOAD_LENGTH];
+        char payload_healthcheck[MAX_PAYLOAD_LENGTH];
 
         static void mqtt_event_handler(void *, esp_event_base_t, int32_t, void *);
         static void mqtt_client(const char *, const char *, const char *);
+        void refresh_healthcheck_payload(char *, int, unsigned long long);
 
-    #endif
+#endif
 
 #endif

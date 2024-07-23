@@ -1,5 +1,5 @@
-
-#include "led_control_sim.h"
+#define LED_MANAGER
+#include "led_control.h"
 
 static QueueHandle_t led_state_queue;
 static TaskHandle_t status_blink_task_handle = NULL;
@@ -63,12 +63,24 @@ void remove_previous_led_task(int pin)
     }
 }
 
+//TODO: finish this function adding the STATUS and CONNECTION cases.
 void ping_led(int pin, int delay)
 {
     remove_previous_led_task(pin);
     gpio_set_level(pin, 0);
     vTaskDelay(delay / portTICK_PERIOD_MS);
-    gpio_set_level(pin, 1);
+    switch (pin)
+    {
+    case CONNECTION_TYPE:
+        get_current_network_module() == SIM_NETWORK_MODULE
+            ? set_led_state(SIM_LED)
+            : gpio_set_level(pin, 1);
+        break;
+    case STATUS:
+        break;
+    case CONNECTION:
+        break;
+    }
 }
 
 void change_led_to_static_mode(int pin, int static_mode)
@@ -95,7 +107,7 @@ void set_led_state(enum LedCommand new_state)
     xQueueSend(led_state_queue, &new_state, portMAX_DELAY);
 }
 
-//TODO: Check if the 100ms is indeed needed
+// TODO: Check if the 100ms is indeed needed
 void led_manager_task(void *)
 {
     enum LedCommand current_state;
@@ -116,8 +128,8 @@ void led_manager_task(void *)
                 activate_led_blink(STATUS, 1000, &status_blink_task_handle);
                 break;
             // static status
-            case ACTIVE_LED:
-                activate_static_led(STATUS);
+            case READY_LED:
+                deactivate_led(STATUS);
                 break;
             // static connection type
             case WIFI_LED:
@@ -151,7 +163,10 @@ void led_manager_task(void *)
                 activate_led_blink(CONNECTION, 4000, &connection_blink_task_handle);
                 break;
             case COMMAND_RECEIVED:
-                ping_led(STATUS, 1000);
+                ping_led(CONNECTION_TYPE, 1000);
+                break;
+            case BODIL_ON_CONTROL:
+                activate_static_led(STATUS);
                 break;
             default:
                 break;

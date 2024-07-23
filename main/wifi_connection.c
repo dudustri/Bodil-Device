@@ -9,7 +9,7 @@ bool status_connected = false;
 // handler for the wifi events loop
 static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
-    const char *TAG_WEV = "WiFi Event";
+    const char *TAG_WEV = "Wi-Fi Event";
     switch (event_id)
     {
     case WIFI_EVENT_STA_START:
@@ -26,7 +26,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
         if (status_connected)
         {
             status_connected = false;
-            ESP_LOGI(TAG_WEV, "WiFi disconected\n");
+            ESP_LOGI(TAG_WEV, "Wi-Fi disconected\n");
             if (retry_conn_num < 5)
             {
                 retry_conn_num++;
@@ -47,7 +47,7 @@ static void wifi_event_handler(void *event_handler_arg, esp_event_base_t event_b
         uint32_t ip_addr = ip4_addr_get_u32(&event->ip_info.ip);
         char ip_str[16]; // Buffer to store IP address string (xxx.xxx.xxx.xxx\0)
         ip4addr_ntoa_r((const ip4_addr_t *)&ip_addr, ip_str, sizeof(ip_str));
-        ESP_LOGI(TAG_WEV, "IP address of the connected device: %s\n", ip_str);
+        ESP_LOGI(TAG_WEV, "IP address of the connected device ~ %s\n", ip_str);
         break;
     }
 }
@@ -87,7 +87,7 @@ esp_err_t destroy_wifi_module(esp_netif_t *esp_netif)
 
 esp_err_t wifi_connection_init()
 {
-    const char *TAG_WIN = "WiFi Init";
+    const char *TAG_WIN = "Wi-Fi Init";
     esp_err_t init_check = ESP_OK;
 
     init_check = esp_netif_init(); // initiates network interface
@@ -133,7 +133,7 @@ esp_err_t wifi_connection_init()
 
 esp_err_t wifi_connection_start(const char *ssid, const char *pass)
 {
-    const char *TAG_WCS = "WiFi Start";
+    const char *TAG_WCS = "Wi-Fi Start";
     esp_err_t wifi_check = ESP_OK;
 
     wifi_config_t wifi_configuration = {
@@ -146,7 +146,7 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
     strcpy((char *)wifi_configuration.sta.ssid, ssid);
     strcpy((char *)wifi_configuration.sta.password, pass);
 
-    ESP_LOGI(TAG_WCS, "Checking customer information... ssid: %s, pass: %s - wifi sta ssid: %s, pass: %s", ssid, pass, wifi_configuration.sta.ssid, wifi_configuration.sta.password);
+    ESP_LOGI(TAG_WCS, "Checking customer information... Args(SSID: %s, Password: %s) ~ Wi-Fi STA(SSID: %s, Password: %s)", ssid, pass, wifi_configuration.sta.ssid, wifi_configuration.sta.password);
 
     wifi_check = wifi_connection_init();
     if (wifi_check != ESP_OK)
@@ -186,7 +186,7 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
     int conn_stats_num = 0;
     do
     {
-        ESP_LOGI(TAG_WCS, "WiFi Connection status ~ Inspecting the connection status -> Retries (%d)", conn_stats_num);
+        ESP_LOGI(TAG_WCS, "Connection Status ~ Inspecting the connection status -> Retries (%d)", conn_stats_num);
         vTaskDelay(1500 * conn_stats_num / portTICK_PERIOD_MS);
         wifi_check = wifi_connection_get_status();
         conn_stats_num++;
@@ -198,7 +198,7 @@ esp_err_t wifi_connection_start(const char *ssid, const char *pass)
 
 esp_err_t wifi_connection_get_status()
 {
-    const char *TAG_WCGS = "WiFi connection Status:";
+    const char *TAG_WCGS = "Wi-Fi Connection Status";
     wifi_ap_record_t ap_info;
 
     if (!status_connected)

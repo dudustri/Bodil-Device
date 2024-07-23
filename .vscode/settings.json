@@ -34,7 +34,7 @@
 		"cstdlib": "c",
 		"esp_netif_ppp.h": "c",
 		"esp_modem_config.h": "c",
-		"led_control_sim.h": "c",
+		"led_control.h": "c",
 		"string.h": "c",
 		"machine_control.h": "c",
 		"heat_pump_state.h": "c",
@@ -51,7 +51,7 @@
 		"stddef.h": "c",
 		"esp_modem_dce_config.h": "c",
 		"conn_handlers.h": "c",
-		"mqtt_service.h": "c"
+		"mqtt_service.h": "c",
 	},
 	"editor.formatOnSave": false,
 	"editor.formatOnPaste": true,

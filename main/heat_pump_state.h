@@ -1,8 +1,6 @@
 #ifndef HEAT_PUMP_STATE_H
 #define HEAT_PUMP_STATE_H
 
-#include <stdbool.h>
-
 // Token Size!
 #define RESPONSE_DATA_SIZE 88
 
@@ -23,6 +21,18 @@ typedef struct StateData {
 // Public functions
 StateData *heat_pump_state_init(void);
 
+    
+    // Heat pump state manager
+    #ifdef HP_STATE_MANAGER
+
+            #include <stdbool.h>
+
+            // State management functions
+            StateData * get_current_energy_consumption_state(void);
+            bool process_heat_pump_energy_state_response(const char *);
+
+    #endif
+
     // Include jsmn only if INCLUDE_JSMN is defined - parser definition
     #ifdef INCLUDE_JSMN
 
@@ -36,24 +46,16 @@ StateData *heat_pump_state_init(void);
 
     #ifdef INTERNAL_HP_STATE
 
-    //HP State internal dependencies
-    #include <string.h>
-    #include "esp_log.h"
-    #include "esp_system.h"
-    #include <time.h>
-    
-    // Private functions
-    bool set_energy_consumption_state(StateData*, unsigned long long, enum EnergyConsumptionState);
-    char * match_state_from_tokens_object(int);
+        //HP State internal dependencies
+        #include <string.h>
+        #include <time.h>
+        #include "esp_log.h"
+        #include "esp_system.h"
+        #include "led_control.h"
 
-    #endif
-
-    // Heat pump state manager
-    #ifdef HP_STATE_MANAGER
-
-    // State management functions
-    StateData *get_current_energy_consumptionState(void);
-    bool process_heat_pump_energy_state_response(const char*);
+        // Private functions
+        bool set_energy_consumption_state(StateData *, unsigned long long, enum EnergyConsumptionState);
+        char *match_state_from_tokens_object(int);
 
     #endif
 

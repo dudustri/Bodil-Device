@@ -29,14 +29,15 @@ extern const uint8_t client_key_end[] asm("_binary_client_key_end");
 extern const uint8_t broker_cert_start[] asm("_binary_ca_crt_start");
 extern const uint8_t broker_cert_end[] asm("_binary_ca_crt_end");
 
-static const char *TAG_MQTT = "MQTT_SERVICE";
+static const char *TAG_MQTT = "MQTT Service";
 
 static int populate_standard_topic_and_payload(void)
 {
     // TODO: add error check
     snprintf(topic_unique, MAX_TOPIC_LENGTH, "bodil/device/%d", customer_info.device_id);
     snprintf(topic_confirmation, MAX_TOPIC_LENGTH, "bodil/device/%d/confirmation", customer_info.device_id);
-    snprintf(payload_confirmation, MAX_PAYLOAD_LENGTH, "{\"device\": \"%d\" {\"status\": \"command received\"}}", customer_info.device_id);
+    snprintf(topic_healthcheck, MAX_TOPIC_LENGTH, "bodil/device/%d/healthcheck", customer_info.device_id);
+    snprintf(payload_confirmation, MAX_PAYLOAD_LENGTH, "{\"device\": \"%d\" {\"status\": \"command received\"}", customer_info.device_id);
     snprintf(payload_registration, MAX_PAYLOAD_LENGTH, "{\"deviceID\": \"%d\"}", customer_info.device_id);
     return 0;
 }
@@ -52,7 +53,7 @@ static void log_error_if_nonzero(const char *message, int error_code)
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
-    ESP_LOGI(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
+    ESP_LOGD(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32 "", base, event_id);
 
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t event_client = event->client;
@@ -64,15 +65,15 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_CONNECTED");
         // This one should send the device ID to this topic and the server will receive and create a TAG_MQTT in the list of monitored devices.
         message_status = esp_mqtt_client_publish(event_client, "bodil/connect", payload_registration, 0, 1, 0);
-        ESP_LOGI("MQTT HANDLER", "sent publish successful, message_status=%d", message_status);
+        ESP_LOGD("MQTT HANDLER", "sent publish successful, message_status=%d", message_status);
 
         // Subscribe to the all devices (global) topic
         message_status = esp_mqtt_client_subscribe(event_client, "bodil/all", 0);
-        ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
+        ESP_LOGD("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
         // Subscribe to its own topic to receive messages from the server individually.
         message_status = esp_mqtt_client_subscribe(event_client, topic_unique, 1);
-        ESP_LOGI("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
+        ESP_LOGD("MQTT HANDLER", "sent subscribe successful, message_status=%d", message_status);
 
         /*
         Example of unsubscribe - it should trigger a function in the server to remove this device from the list
@@ -83,37 +84,39 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         break;
 
     case MQTT_EVENT_DISCONNECTED:
-        ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_DISCONNECTED");
+        ESP_LOGD("MQTT HANDLER", "MQTT_EVENT_DISCONNECTED");
         break;
     case MQTT_EVENT_SUBSCRIBED:
-        ESP_LOGI("MQTT HANDLER", "MQTT_EVENT_SUBSCRIBED, message_status=%d", event->msg_id);
+        ESP_LOGD("MQTT HANDLER", "MQTT_EVENT_SUBSCRIBED, message_status=%d", event->msg_id);
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, message_status=%d", event->msg_id);
+        ESP_LOGD(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, message_status=%d", event->msg_id);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_PUBLISHED, message_status=%d", event->msg_id);
+        ESP_LOGD(TAG_MQTT, "MQTT_EVENT_PUBLISHED, message_status=%d", event->msg_id);
         break;
     case MQTT_EVENT_DATA:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
+        ESP_LOGD(TAG_MQTT, "MQTT_EVENT_DATA [TOPIC=%.*s | DATA=%.*s]", event->topic_len, event->topic, event->data_len, event->data);
+        set_led_state(COMMAND_RECEIVED);
         // TODO: remove these printf statements (switch for logging)
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
 
-        // TODO: check the format of the data? Probably there is a handler already during the parsing process [inspect it]
+        // printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        // printf("DATA=%.*s\r\n", event->data_len, event->data);
+
         // Dispatch a new task to change the machine state based on the message status
         if (process_heat_pump_energy_state_response(truncate_event_data(event->data)))
         {
-            send_control_signal(get_current_energy_consumptionState()->state);
+            send_control_signal(get_current_energy_consumption_state()->state);
             // Send back to the server a confirmation server
             message_status = esp_mqtt_client_publish(event_client, topic_confirmation, payload_confirmation, 0, 1, 0);
-            // ESP_LOGI(TAG_MQTT, "confirmation sent publish successful, message_status=%d", message_status);
-        } else{
+        }
+        else
+        {
             ESP_LOGW(TAG_MQTT, "Data received is not valid. No confirmation will be sent.");
         }
         break;
     case MQTT_EVENT_ERROR:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
+        ESP_LOGD(TAG_MQTT, "MQTT_EVENT_ERROR");
         if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
         {
             log_error_if_nonzero("reported from esp-tls", event->error_handle->esp_tls_last_esp_err);
@@ -188,4 +191,19 @@ esp_err_t suspend_mqtt_service(esp_mqtt_client_handle_t *client)
 esp_err_t resume_mqtt_service(esp_mqtt_client_handle_t *client)
 {
     return esp_mqtt_client_start(*client);
+}
+
+void refresh_healthcheck_payload(char *message, int state, unsigned long long timestamp)
+{
+    memset(message, 0, MAX_PAYLOAD_LENGTH);
+    snprintf(message, MAX_PAYLOAD_LENGTH, "{\"State\": %d, \"Timestamp\": %llu}", state, timestamp);
+}
+
+esp_err_t send_healthcheck(void)
+{
+    ESP_LOGI(TAG_MQTT, "Sending healthcheck with the current state!");
+    StateData * current = get_current_energy_consumption_state();
+    refresh_healthcheck_payload(payload_healthcheck, current->state, current->timestamp);
+    int healthcheck_status = esp_mqtt_client_publish(client, topic_healthcheck, payload_healthcheck, 0, 1, 0);
+    return healthcheck_status >= 0 ? ESP_OK : ESP_FAIL;
 }

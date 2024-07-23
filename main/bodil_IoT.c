@@ -55,10 +55,13 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
 
 void app_main(void)
 {
-    machine_control_init();
-    
-    const char *TAG_MAIN = "MAIN THREAD";
+    const char *TAG_MAIN = "Main Thread";
     const uint8_t check_conn_minutes_cycle = 1;
+
+    machine_control_init();
+    led_init();
+    set_led_state(INIT_LED);
+
     /*  _____________________________________________________
         --------------Initialization procedure:--------------
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
@@ -68,9 +71,6 @@ void app_main(void)
     esp_log_level_set("*", ESP_LOG_INFO);
 
     esp_err_t ret;
-
-    led_init();
-    set_led_state(INIT_LED);
 
     ESP_ERROR_CHECK(nvs_dotenv_load());
 
@@ -129,11 +129,11 @@ void app_main(void)
     }
     else
     {
-        ESP_LOGE(TAG_MAIN, "Periodic Requests Task - failed to initialize the arguments struct\n");
+        ESP_LOGE(TAG_MAIN, "Periodic Requests Task - failed to initialize the arguments struct");
     }
 
     connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active, &requestHandler, mqtt_client);
-    set_led_state(ACTIVE_LED);
+    set_led_state(READY_LED);
 
     /*  _____________________________________________________
         ----- core loop keeping the main thread running -----
@@ -141,12 +141,14 @@ void app_main(void)
     while (1)
     {
         vTaskDelay((60000 * check_conn_minutes_cycle) / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG_MAIN, "%d minutes passed in the main thread", check_conn_minutes_cycle);
-
+        ESP_LOGI("", "----------------------------------------------------------------------");
+        ESP_LOGI(TAG_MAIN, "Checking system health. Cycle set -> %d minutes", check_conn_minutes_cycle);
+        send_healthcheck();
         if (!is_connection_estabilished(netif_connected_module))
         {
             handle_netif_mode(&customer_info, netif_connected_module, &conn_preference);
         }
         connection_status_handler(BLE_DEVICE_NAME, &bluetooth_active, &requestHandler, mqtt_client);
+        ESP_LOGI("", "----------------------------------------------------------------------");
     }
 }

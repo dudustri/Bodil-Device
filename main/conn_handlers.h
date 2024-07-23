@@ -30,7 +30,7 @@ enum NetworkModuleUsed get_current_network_module(void);
         #include "sim_network.h"
         #include "wifi_connection.h"
         #include "mqtt_service.h"
-        #include "led_control_sim.h"
+        #include "led_control.h"
 
         esp_err_t handle_netif_mode(const BodilCustomer *, enum NetworkModuleUsed *, enum ConnectionPreference *conn_settings);
         void connection_status_handler(char *, bool *, TaskHandle_t *, esp_mqtt_client_handle_t *mqtt_client);

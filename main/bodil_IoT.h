@@ -18,7 +18,7 @@
     #include "wifi_connection.h"
     #include "bluetooth.h"
     #include "sim_network.h"
-    #include "led_control_sim.h"
+    #include "led_control.h"
     #include "heat_pump_state.h"
     #include "machine_control.h"
     #include "customer_info.h"
