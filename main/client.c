@@ -7,12 +7,12 @@ esp_err_t client_handler(esp_http_client_event_handle_t event)
     switch (event->event_id)
     {
     case HTTP_EVENT_ON_DATA:
-        ESP_LOGI("CLIENT HANDLER - ", "HTTP_EVENT_ON_DATA: %.*s\n", event->data_len, (char *)event->data);
+        ESP_LOGI("CLIENT HANDLER - ", "HTTP_EVENT_ON_DATA: %.*s", event->data_len, (char *)event->data);
         if (process_heat_pump_energy_state_response(truncate_event_data((char *)event->data)))
             send_control_signal(get_current_energy_consumption_state()->state);
         break;
     case HTTP_EVENT_ERROR:
-        ESP_LOGE("CLIENT HANDLER - ", "HTTP_EVENT_ERROR: %.*s\n", event->data_len, (char *)event->data);
+        ESP_LOGE("CLIENT HANDLER - ", "HTTP_EVENT_ERROR: %.*s", event->data_len, (char *)event->data);
         break;
     default:
         break;
@@ -35,7 +35,7 @@ void get_heatpump_set_state(const char *service_url, const char *api_header, con
     esp_err_t err = esp_http_client_perform(client);
     if (err != ESP_OK)
     {
-        ESP_LOGE("HTTP CLIENT PERFORM", "HTTP request failed: %d\n", err);
+        ESP_LOGE("HTTP CLIENT PERFORM", "HTTP request failed: %d", err);
         // set_led_state(RED);
     }
     esp_http_client_cleanup(client);

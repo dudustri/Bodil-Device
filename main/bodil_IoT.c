@@ -69,6 +69,7 @@ void app_main(void)
     ESP_LOGI(TAG_MAIN, "Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG_MAIN, "IDF version: %s", esp_get_idf_version());
     esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("uart_terminal", ESP_LOG_ERROR); //to supress RX Break warning!
 
     esp_err_t ret;
 
@@ -142,7 +143,7 @@ void app_main(void)
     {
         vTaskDelay((60000 * check_conn_minutes_cycle) / portTICK_PERIOD_MS);
         ESP_LOGI("", "----------------------------------------------------------------------");
-        ESP_LOGI(TAG_MAIN, "Checking system health. Cycle set -> %d minutes", check_conn_minutes_cycle);
+        ESP_LOGI(TAG_MAIN, "Checking system health. Cycle set -> %d minute(s)", check_conn_minutes_cycle);
         send_healthcheck();
         if (!is_connection_estabilished(netif_connected_module))
         {

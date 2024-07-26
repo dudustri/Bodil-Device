@@ -12,118 +12,160 @@
 #define APN "onomondo"
 #define APN_PIN ""
 #define SIM_NETWORK_RETRIES_NUM 5
-#define START_NETWORK_RETRIES_NUM 5
+#define START_NETWORK_RETRIES_NUM 2
 #define SIM_POWER_UP_TRIES 3
 #define BUF_SIZE 128
 #define MAX_ESP_INFO_SIZE 32
 
-const char *TAG = "Modem SIM Network";
+const char *TAG_SIM = "Modem SIM Network";
 const char *CONFIG_APN = APN;
 const char *CONFIG_APN_PIN = APN_PIN;
 static esp_modem_dce_t *sim_mod_dce = NULL;
 static esp_netif_t *ppp_netif = NULL;
 static volatile bool pppos_connected = false;
-static bool pppos_retrying_connection = false;
-static EventGroupHandle_t event_group = NULL;
-static const int CONNECT_BIT = BIT0;
-static const int DISCONNECT_BIT = BIT1;
+static volatile bool pppos_trying_connection = false;
+// static EventGroupHandle_t module_connection = NULL;
+// static const int CONNECT_BIT = BIT0;
+// static const int DISCONNECT_BIT = BIT1;
+
+ESP_EVENT_DEFINE_BASE(SIM_NETWORK_FAILURE_EVENT_BASE);
 
 /*----------------------------------------------------------------
 ------------------------- EVENT HANDLERS -------------------------
 ----------------------------------------------------------------*/
+void deactivate_sim_module(void)
+{
+    ESP_LOGW(TAG_SIM, "setting the state DEACTIVATED in the main thread");
+    pppos_trying_connection = false;
+    pppos_connected = false;
+    destroy_sim_network_module(sim_mod_dce, ppp_netif);
+    set_network_disconnected(false);
+    ESP_LOGI(TAG_SIM, "sim modem destroyed successfully and the main thread now holds the DEACTIVATED status flag");
+}
+
+static void on_network_failure(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    ESP_LOGW(TAG_SIM, "On network failure handler triggered!");
+    if (pppos_connected)
+    {
+        int retries = 0;
+        pppos_connected = false;
+        pppos_trying_connection = true;
+        if (sim_module_stop_network(sim_mod_dce))
+        {
+            if (sim_network_connection_get_status() == ESP_OK)
+            {
+                while (!pppos_connected && retries < SIM_NETWORK_RETRIES_NUM)
+                {
+                    vTaskDelay(pdMS_TO_TICKS(500 * retries));
+                    retries++;
+                }
+                if (sim_module_start_network(sim_mod_dce))
+                {
+                    return;
+                }
+            }
+        }
+        pppos_trying_connection = false;
+        deactivate_sim_module();
+        return;
+    }
+    return;
+}
 
 void on_ip_lost(void)
 {
     uint8_t retries = 0;
-    pppos_retrying_connection = true;
     do
     {
         retries++;
-        vTaskDelay(pdMS_TO_TICKS(1000 * retries));
+        vTaskDelay(pdMS_TO_TICKS(500 * retries));
         if (pppos_is_connected())
         {
-            ESP_LOGI(TAG, "reconnected!");
-            pppos_retrying_connection = false;
+            ESP_LOGI(TAG_SIM, "reconnected!");
             return;
         }
-        ESP_LOGI(TAG, "retrying to reconnect after lost the ip %d / %d", retries, SIM_NETWORK_RETRIES_NUM);
+        ESP_LOGI(TAG_SIM, "retrying to reconnect after lost the ip %d / %d", retries, SIM_NETWORK_RETRIES_NUM);
     } while (retries < SIM_NETWORK_RETRIES_NUM);
 
-    ESP_LOGW(TAG, "setting the state DEACTIVATED in the main thread");
-    pppos_retrying_connection = false;
-    pppos_connected = false;
-    set_network_disconnected(false);
-    ESP_LOGI(TAG, "sim modem destroyed successfully and the main thread now holds the DEACTIVATED status flag");
-    destroy_sim_network_module(sim_mod_dce, ppp_netif);
+    deactivate_sim_module();
 };
 
 static void on_ip_event(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
-    ESP_LOGD(TAG, "IP event! %" PRId32, event_id);
+    ESP_LOGD(TAG_SIM, "IP event! %" PRId32, event_id);
     if (event_id == IP_EVENT_PPP_GOT_IP)
     {
         esp_netif_dns_info_t dns_info;
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         esp_netif_t *netif = event->esp_netif;
 
-        ESP_LOGI(TAG, "Modem Connect to PPP Server");
-        ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
-        ESP_LOGI(TAG, "IP          : " IPSTR, IP2STR(&event->ip_info.ip));
-        ESP_LOGI(TAG, "Netmask     : " IPSTR, IP2STR(&event->ip_info.netmask));
-        ESP_LOGI(TAG, "Gateway     : " IPSTR, IP2STR(&event->ip_info.gw));
+        ESP_LOGI(TAG_SIM, "Modem Connect to PPP Server");
+        ESP_LOGI(TAG_SIM, "~~~~~~~~~~~~~~");
+        ESP_LOGI(TAG_SIM, "IP          : " IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(TAG_SIM, "Netmask     : " IPSTR, IP2STR(&event->ip_info.netmask));
+        ESP_LOGI(TAG_SIM, "Gateway     : " IPSTR, IP2STR(&event->ip_info.gw));
         esp_netif_get_dns_info(netif, 0, &dns_info);
-        ESP_LOGI(TAG, "Name Server1: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+        ESP_LOGI(TAG_SIM, "Name Server1: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
         esp_netif_get_dns_info(netif, 1, &dns_info);
-        ESP_LOGI(TAG, "Name Server2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
-        ESP_LOGI(TAG, "~~~~~~~~~~~~~~");
-        xEventGroupSetBits(event_group, CONNECT_BIT);
+        ESP_LOGI(TAG_SIM, "Name Server2: " IPSTR, IP2STR(&dns_info.ip.u_addr.ip4));
+        ESP_LOGI(TAG_SIM, "~~~~~~~~~~~~~~");
+        // xEventGroupSetBits(module_connection, CONNECT_BIT);
+        // xEventGroupClearBits(module_connection, DISCONNECT_BIT);
         pppos_connected = true;
-        ESP_LOGI(TAG, "GOT ip event!!!");
+        pppos_trying_connection = false;
+        ESP_LOGI(TAG_SIM, "GOT ip event!!!");
     }
     else if (event_id == IP_EVENT_PPP_LOST_IP)
     {
-        ESP_LOGI(TAG, "Modem Disconnect from PPP Server");
-        xEventGroupSetBits(event_group, DISCONNECT_BIT);
-        if (!pppos_is_retrying_to_connect())
+        ESP_LOGI(TAG_SIM, "Modem Disconnect from PPP Server");
+        // xEventGroupSetBits(module_connection, DISCONNECT_BIT);
+        // xEventGroupClearBits(module_connection, CONNECT_BIT);
+        if (!pppos_trying_connection)
         {
             pppos_connected = false;
+            pppos_trying_connection = true;
             on_ip_lost();
         }
     }
     else if (event_id == IP_EVENT_GOT_IP6)
     {
-        ESP_LOGI(TAG, "GOT IPv6 event!");
+        ESP_LOGI(TAG_SIM, "GOT IPv6 event!");
         ip_event_got_ip6_t *event = (ip_event_got_ip6_t *)event_data;
-        xEventGroupSetBits(event_group, CONNECT_BIT);
+        // xEventGroupSetBits(module_connection, CONNECT_BIT);
+        // xEventGroupClearBits(module_connection, DISCONNECT_BIT);
         pppos_connected = true;
-        ESP_LOGI(TAG, "Got IPv6 address " IPV6STR, IPV62STR(event->ip6_info.ip));
+        pppos_trying_connection = false;
+        ESP_LOGI(TAG_SIM, "Got IPv6 address " IPV6STR, IPV62STR(event->ip6_info.ip));
     }
 }
 
 static void on_ppp_changed(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     // To more information about the PPP failure events check: https://github.com/espressif/esp-idf/blob/master/components/esp_netif/include/esp_netif_ppp.h
-    ESP_LOGI(TAG, "PPP state changed event %" PRIu32, event_id);
+    ESP_LOGI(TAG_SIM, "PPP state changed event %" PRIu32, event_id);
     if (event_id != 0)
     {
         if (event_id == NETIF_PPP_ERRORUSER)
         {
             esp_netif_t *p_netif = *(esp_netif_t **)event_data;
-            ESP_LOGW(TAG, "User interrupted event from netif: %p", p_netif);
+            ESP_LOGW(TAG_SIM, "User interrupted event from netif: %p", p_netif);
             return;
         }
         else if (event_id == NETIF_PPP_ERRORCONNECT)
         {
-            ESP_LOGE(TAG, "Error ~ connection lost: NETIF_PPP_ERRORCONNECT");
+            ESP_LOGE(TAG_SIM, "Error ~ connection lost: NETIF_PPP_ERRORCONNECT");
         }
         else
         {
-            ESP_LOGE(TAG, "A specific NETIF_PPP error happened, please check (esp_netif_ppp_status_event_t) -> ID: %" PRIu32, event_id);
+            ESP_LOGE(TAG_SIM, "A specific NETIF_PPP error happened, please check (esp_netif_ppp_status_event_t) -> ID: %" PRIu32, event_id);
         }
-        xEventGroupSetBits(event_group, DISCONNECT_BIT);
+        // xEventGroupSetBits(module_connection, DISCONNECT_BIT);
+        // xEventGroupClearBits(module_connection, CONNECT_BIT);
+        pppos_connected = true;
         return;
     }
-    ESP_LOGI(TAG, "NETIF_PPP sucessfully connected!");
+    ESP_LOGI(TAG_SIM, "NETIF_PPP sucessfully connected!");
 }
 
 /*----------------------------------------------------------------
@@ -181,12 +223,12 @@ esp_err_t dce_init(esp_modem_dce_t **dce, esp_netif_t **netif)
     esp_modem_dce_config_t dce_config = {
         .apn = CONFIG_APN,
     };
-    ESP_LOGI(TAG, "APN set: %s", dce_config.apn);
-    ESP_LOGI(TAG, "Initializing esp_modem for a generic module...");
+    ESP_LOGI(TAG_SIM, "APN set: %s", dce_config.apn);
+    ESP_LOGI(TAG_SIM, "Initializing esp_modem for a generic module...");
     *dce = esp_modem_new(&dte_config, &dce_config, *netif);
     // *dce = esp_modem_new_dev(ESP_MODEM_DCE_SIM7600, &dte_config, &dce_config, *netif);
 
-    ESP_LOGI(TAG, "modem pointer: %p - %p", *dce, *netif);
+    ESP_LOGI(TAG_SIM, "modem pointer: %p - %p", *dce, *netif);
     return *dce ? ESP_OK : ESP_FAIL;
 }
 
@@ -229,7 +271,7 @@ esp_err_t turn_off_gnss(esp_modem_dce_t *dce, int *gnss_power_mode)
     }
     else
     {
-        ESP_LOGE(TAG, "Error powering off the GNSS module. Error: %d", response);
+        ESP_LOGE(TAG_SIM, "Error powering off the GNSS module. Error: %d", response);
     }
     return response;
 }
@@ -244,7 +286,7 @@ void get_gnss_initial_data(esp_modem_dce_t *dce, int *gnss_power_mode)
     /* TODO: Wrap this part in a function with a config parameter of the GNSS starting it cold, warm or hot. */
     // ---------------------------------------------------------------------------------------------------------------
     vTaskDelay(pdMS_TO_TICKS(5000));
-    ESP_LOGI(TAG, "Starting GNSS in Cold Mode.");
+    ESP_LOGI(TAG_SIM, "Starting GNSS in Cold Mode.");
     handle_at_command_log(esp_modem_at(dce, "AT+CGNSCOLD", data, 2000), success_action_data_buffer, data); // Cold Start GNSS module
     vTaskDelay(pdMS_TO_TICKS(10000));
     // ---------------------------------------------------------------------------------------------------------------
@@ -317,7 +359,7 @@ bool synchronize_module(esp_modem_dce_t *dce, uint8_t count)
     {
         if (modem_check_sync(dce))
         {
-            ESP_LOGI(TAG, "OK - Module Synchronized!");
+            ESP_LOGI(TAG_SIM, "OK - Module Synchronized!");
             return true;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -327,7 +369,7 @@ bool synchronize_module(esp_modem_dce_t *dce, uint8_t count)
 
 void network_module_power(void)
 {
-    ESP_LOGI(TAG, "Network module power pin - pulling down!");
+    ESP_LOGI(TAG_SIM, "Network module power pin - pulling down!");
     gpio_config_t io_conf;
     io_conf.intr_type = GPIO_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
@@ -358,8 +400,8 @@ void sim_module_reset(esp_modem_dce_t *dce)
     esp_err_t err = esp_modem_reset(dce);
     if (err != ESP_OK)
     {
-        ESP_LOGE(TAG, "modem reset AT command error: %d", err);
-        ESP_LOGD(TAG, "switching the power off/on to hard reset!");
+        ESP_LOGE(TAG_SIM, "modem reset AT command error: %d", err);
+        ESP_LOGD(TAG_SIM, "switching the power off/on to hard reset!");
         network_module_power();
         vTaskDelay(pdMS_TO_TICKS(3000));
         network_module_power();
@@ -376,7 +418,7 @@ esp_err_t sim_module_power_up(esp_modem_dce_t *dce)
         {
             return ESP_OK;
         }
-        ESP_LOGI(TAG, "Error to sync with network module. Retries: %d / %d", tries, SIM_POWER_UP_TRIES);
+        ESP_LOGI(TAG_SIM, "Error to sync with network module. Retries: %d / %d", tries, SIM_POWER_UP_TRIES);
 
         // Set sim to command mode since the problem can be that it is in data mode.
         if (tries == 1)
@@ -413,15 +455,15 @@ esp_err_t destroy_sim_network_module(esp_modem_dce_t *dce, esp_netif_t *esp_neti
 
 esp_err_t check_signal_quality(esp_modem_dce_t *dce)
 {
-    const char *TAG_SIG_CHECK = "Modem Network Signal Quality Check";
+    const char *TAG_SIM_SIG_CHECK = "Modem Network Signal Quality Check";
     int rssi, ber = 0;
     esp_err_t ret = esp_modem_get_signal_quality(dce, &rssi, &ber);
     if (ret != ESP_OK)
     {
-        ESP_LOGE(TAG_SIG_CHECK, "esp_modem_get_signal_quality failed with %d %s", ret, esp_err_to_name(ret));
+        ESP_LOGE(TAG_SIM_SIG_CHECK, "esp_modem_get_signal_quality failed with %d %s", ret, esp_err_to_name(ret));
         return ret;
     }
-    ESP_LOGI(TAG_SIG_CHECK, "Signal quality ~ rssi=%d, ber=%d", rssi, ber);
+    ESP_LOGI(TAG_SIM_SIG_CHECK, "Signal quality ~ rssi=%d, ber=%d", rssi, ber);
     return rssi != 99 && rssi > 5 ? ESP_OK : ESP_FAIL;
 }
 
@@ -429,7 +471,7 @@ esp_err_t sim_network_connection_get_status(void)
 {
     int retries = 0;
     int signal_ok = false;
-    const char *TAG_CONN_STATUS = "Modem Network Connection Status";
+    const char *TAG_SIM_CONN_STATUS = "Modem Network Connection Status";
     esp_err_t ret_check;
     do
     {
@@ -438,12 +480,12 @@ esp_err_t sim_network_connection_get_status(void)
         {
             vTaskDelay(pdMS_TO_TICKS(1500 * retries));
             retries++;
-            if (retries >= SIM_NETWORK_RETRIES_NUM)
+            if (retries > SIM_NETWORK_RETRIES_NUM)
             {
-                ESP_LOGE(TAG_CONN_STATUS, "SIGNAL QUALITY CHECK: No signal was identified.");
+                ESP_LOGE(TAG_SIM_CONN_STATUS, "SIGNAL QUALITY CHECK: No signal was identified.");
                 return ret_check;
             }
-            ESP_LOGW(TAG_CONN_STATUS, "SIGNAL QUALITY CHECK: The signal quality check failed... Retrying (%d/%d)", retries, SIM_NETWORK_RETRIES_NUM);
+            ESP_LOGW(TAG_SIM_CONN_STATUS, "SIGNAL QUALITY CHECK: The signal quality check failed... Retrying (%d/%d)", retries, SIM_NETWORK_RETRIES_NUM);
         }
         else
         {
@@ -457,24 +499,25 @@ esp_err_t sim_network_connection_get_status(void)
 bool start_network(esp_modem_dce_t *dce, int *gnss_power_mode)
 {
     uint8_t retries = 0;
-    EventBits_t bits = 0;
-    while ((bits & CONNECT_BIT) == 0 && retries < START_NETWORK_RETRIES_NUM)
+    // EventBits_t bits = 0;
+    pppos_trying_connection = true;
+    while (/*(bits & CONNECT_BIT) == 0*/ !pppos_connected && retries < START_NETWORK_RETRIES_NUM)
     {
         retries++;
         if (!modem_check_sync(dce))
         {
-            ESP_LOGE(TAG, "Modem does not respond... trying to exit from network data mode");
+            ESP_LOGE(TAG_SIM, "Modem does not respond... trying to exit from network data mode");
             if (!sim_module_stop_network(dce) || !modem_check_sync(dce))
             {
-                ESP_LOGE(TAG, "Modem does not respond to AT anyway... restarting");
+                ESP_LOGE(TAG_SIM, "Modem does not respond to AT anyway... restarting");
                 sim_module_reset(dce);
-                ESP_LOGI(TAG, "Restarted");
+                ESP_LOGI(TAG_SIM, "Restarted");
                 continue;
             }
         }
         if (sim_network_connection_get_status() != ESP_OK)
         {
-            ESP_LOGI(TAG, "The signal is too weak to continue with the network connection...");
+            ESP_LOGI(TAG_SIM, "The signal is too weak to continue with the network connection...");
             continue;
         }
         if (*gnss_power_mode != 0)
@@ -486,19 +529,21 @@ bool start_network(esp_modem_dce_t *dce, int *gnss_power_mode)
         }
         if (!sim_module_start_network(dce))
         {
-            ESP_LOGE(TAG, "Modem could not enter in the network mode ...");
+            ESP_LOGE(TAG_SIM, "Modem could not enter in the network mode ...");
             vTaskDelay(pdMS_TO_TICKS(2000));
             continue;
         }
-        bits = xEventGroupWaitBits(event_group, (DISCONNECT_BIT | CONNECT_BIT), pdTRUE, pdFALSE, pdMS_TO_TICKS(30000));
-        if (bits & DISCONNECT_BIT)
+        // bits = xEventGroupWaitBits(module_connection, (DISCONNECT_BIT | CONNECT_BIT), pdTRUE, pdFALSE, pdMS_TO_TICKS(30000));
+        if (/*bits & DISCONNECT_BIT ||*/ !pppos_connected)
         {
-            ESP_LOGE(TAG, "Modem got disconnected ...retrying");
+            ESP_LOGE(TAG_SIM, "Modem got disconnected ...");
             sim_module_stop_network(dce);
             continue;
         }
+        pppos_trying_connection = false;
         return true;
     }
+    pppos_trying_connection = false;
     return false;
 }
 
@@ -511,16 +556,16 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
     ret_check = esp_netif_init(); // initiates network interface
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE(TAG, "NETIF - Initialization: netif init failed with %d", ret_check);
+        ESP_LOGE(TAG_SIM, "NETIF - Initialization: netif init failed with %d", ret_check);
         return ret_check;
     }
     ret_check = esp_event_loop_create_default(); // dispatch events loop callback
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE(TAG, "EVENT LOOP - Creation: Event Loop creation failed with %d", ret_check);
+        ESP_LOGE(TAG_SIM, "EVENT LOOP - Creation: Event Loop creation failed with %d", ret_check);
         return ret_check;
     }
-    event_group = xEventGroupCreate();
+    // module_connection = xEventGroupCreate();
 
     // Initialize lwip network interface in PPP mode
     esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
@@ -530,36 +575,43 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
     ret_check = dce_init(&sim_mod_dce, &ppp_netif);
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE(TAG, "NETWORK INITIALIZATION - Register: IP event handler registering failed with %d", ret_check);
+        ESP_LOGE(TAG_SIM, "DCE Initialization Failed... (%d)", ret_check);
         return ret_check;
     }
 
     ret_check = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, on_ip_event, NULL);
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE(TAG, "IP EVENT HANDLER - Register: IP event handler registering failed with %d", ret_check);
+        ESP_LOGE(TAG_SIM, "ip Event Handler - Register: event handler registering failed with %d", ret_check);
         return ret_check;
     }
 
     ret_check = esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, &on_ppp_changed, NULL);
     if (ret_check != ESP_OK)
     {
-        ESP_LOGE(TAG, "PPP EVENT HANDLER - Register: Set Pin procedure failed with %d... Stopping SIM_NETWORK Module", ret_check);
+        ESP_LOGE(TAG_SIM, "PPP Event Handler - Register: event handler registering failed with %d", ret_check);
+        return ret_check;
+    }
+
+    ret_check = esp_event_handler_register(SIM_NETWORK_FAILURE_EVENT_BASE, ESP_EVENT_ANY_ID, &on_network_failure, NULL);
+    if (ret_check != ESP_OK)
+    {
+        ESP_LOGE(TAG_SIM, "SIM Network Failure Event Handler - Register: event handler registering failed with %d", ret_check);
         return ret_check;
     }
 
     // Energize the module
-    ESP_LOGI(TAG, "Powering up and starting the sync with the SIM network module ...");
+    ESP_LOGI(TAG_SIM, "Powering up and starting the sync with the SIM network module ...");
     if (sim_module_power_up(sim_mod_dce) != ESP_OK)
     {
-        ESP_LOGE(TAG, "Power up procedure failed.");
+        ESP_LOGE(TAG_SIM, "Power up procedure failed.");
         if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
         {
-            ESP_LOGE(TAG, "Error destroying the SIM_NETWORK module.");
+            ESP_LOGE(TAG_SIM, "Error destroying the SIM_NETWORK module.");
         }
         return ESP_FAIL;
     }
-    ESP_LOGI(TAG, "Module energized and syncronized successfully.");
+    ESP_LOGI(TAG_SIM, "Module energized and syncronized successfully.");
 
     // Retrieve and display module information
     get_basic_module_info(sim_mod_dce, &gnss_power_mode);
@@ -569,14 +621,14 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
     if (strlen(CONFIG_APN_PIN) != 0 && sim_mod_dce)
     {
         esp_err_t err;
-        ESP_LOGW(TAG, "SET PIN - CHECK: Entering in the set pin configuration...");
+        ESP_LOGW(TAG_SIM, "SET PIN - CHECK: Entering in the set pin configuration...");
         err = set_pin(sim_mod_dce, CONFIG_APN_PIN);
         if (err != ESP_OK)
         {
-            ESP_LOGE(TAG, "SET PIN - CHECK: Not chipset or pin config was identified. Destroying SIM_NETWORK module...");
+            ESP_LOGE(TAG_SIM, "SET PIN - CHECK: Not chipset or pin config was identified. Destroying SIM_NETWORK module...");
             if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
             {
-                ESP_LOGE(TAG, "SET PIN - CHECK: Error destroying the SIM_NETWORK module.");
+                ESP_LOGE(TAG_SIM, "SET PIN - CHECK: Error destroying the SIM_NETWORK module.");
             }
             return err;
         }
@@ -591,10 +643,10 @@ esp_err_t start_sim_network_module(bool gnss_enabled)
     // Start network inspecting operational data and setting the modem to data mode
     if (!start_network(sim_mod_dce, &gnss_power_mode))
     {
-        ESP_LOGE(TAG, "Data mode start failed. Destroying the SIM_NETWORK module.");
+        ESP_LOGE(TAG_SIM, "Data mode start failed. Destroying the SIM_NETWORK module.");
         if (destroy_sim_network_module(sim_mod_dce, ppp_netif) != ESP_OK)
         {
-            ESP_LOGE(TAG, "Error destroying the SIM_NETWORK module.");
+            ESP_LOGE(TAG_SIM, "Error destroying the SIM_NETWORK module.");
         }
         return ESP_FAIL;
     }
@@ -612,5 +664,5 @@ bool pppos_is_connected(void)
 
 bool pppos_is_retrying_to_connect(void)
 {
-    return pppos_retrying_connection;
+    return pppos_trying_connection;
 }

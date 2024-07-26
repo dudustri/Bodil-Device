@@ -123,6 +123,15 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             log_error_if_nonzero("reported from tls stack", event->error_handle->esp_tls_stack_err);
             log_error_if_nonzero("captured as transport's socket errno", event->error_handle->esp_transport_sock_errno);
             ESP_LOGE(TAG_MQTT, "Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+            if (get_current_network_module() == SIM_NETWORK_MODULE && pppos_is_connected() && !pppos_is_retrying_to_connect())
+            {
+                ESP_LOGW(TAG_MQTT, "Triggering SIM network failure event!");
+                int32_t event_id = 0;
+                if (esp_event_post("SIM_NETWORK_FAILURE_EVENT_BASE", event_id, NULL, 0, portMAX_DELAY) != ESP_OK)
+                {
+                    ESP_LOGE(TAG_MQTT, "Failed to dispatch the network failure event...");
+                };
+            }
         }
         break;
     default:
@@ -168,6 +177,7 @@ static void mqtt_client(const char *broker_url, const char *broker_user, const c
         ESP_LOGE(TAG_MQTT, "Failed to register the event handlers to the initialized client");
         return;
     }
+    // TODO: start the client only if there is connection, otherwise skip and start later
     esp_mqtt_client_start(client);
     if (err != ESP_OK)
     {
@@ -202,8 +212,9 @@ void refresh_healthcheck_payload(char *message, int state, unsigned long long ti
 esp_err_t send_healthcheck(void)
 {
     ESP_LOGI(TAG_MQTT, "Sending healthcheck with the current state!");
-    StateData * current = get_current_energy_consumption_state();
+    StateData *current = get_current_energy_consumption_state();
     refresh_healthcheck_payload(payload_healthcheck, current->state, current->timestamp);
     int healthcheck_status = esp_mqtt_client_publish(client, topic_healthcheck, payload_healthcheck, 0, 1, 0);
+    // trigger here
     return healthcheck_status >= 0 ? ESP_OK : ESP_FAIL;
 }

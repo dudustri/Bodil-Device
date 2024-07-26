@@ -17,6 +17,7 @@ enum LedCommand
     BLE_LED,
     ESTABILISHING_CONNECTION_LED,
     CONNECTED_LED,
+    DISCONNECTED_LED,
     ERROR_LED,
     COMMAND_RECEIVED,
     BODIL_ON_CONTROL,
@@ -34,6 +35,7 @@ void set_led_state(enum LedCommand);
         #include "freertos/task.h"
         #include "freertos/queue.h"
         #include "conn_handlers.h"
+        #include "heat_pump_state.h"
 
         typedef struct
         {

@@ -37,10 +37,12 @@ esp_err_t send_healthcheck();
 
         #include "esp_log.h"
 
+        #include "conn_handlers.h"
         #include "customer_info.h"
         #include "heat_pump_state.h"
         #include "led_control.h"
         #include "machine_control.h"
+        #include "sim_network.h"
         #include "utils.h"
 
         char topic_unique[MAX_TOPIC_LENGTH];

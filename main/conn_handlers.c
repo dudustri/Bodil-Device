@@ -8,6 +8,7 @@ void set_network_disconnected(bool conn)
     if (!conn)
     {
         current_network_module = DEACTIVATED;
+        set_led_state(DISCONNECTED_LED);
     }
     return;
 }

@@ -57,6 +57,8 @@ esp_err_t start_sim_network_module(bool);
         esp_err_t check_signal_quality(esp_modem_dce_t *);
         esp_err_t sim_network_connection_get_status(void);
         bool start_network(esp_modem_dce_t *, int *);
+        void deactivate_sim_module(void);
+        static void on_network_failure(void *, esp_event_base_t, int32_t, void *);
 
     #endif
 

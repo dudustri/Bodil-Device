@@ -1,4 +1,5 @@
 #define LED_MANAGER
+#define HP_STATE_MANAGER
 #include "led_control.h"
 
 static QueueHandle_t led_state_queue;
@@ -29,7 +30,7 @@ void activate_led_blink(int pin, int cycle_time, TaskHandle_t *task_handle)
     // if there is an existing blink task -> delete it
     if (*task_handle != NULL)
     {
-        ESP_LOGI(TAG_LED, "Deleting existing blink task for pin %d", pin);
+        ESP_LOGD(TAG_LED, "Deleting existing blink task for pin %d", pin);
         vTaskDelete(*task_handle);
         *task_handle = NULL;
     }
@@ -37,7 +38,7 @@ void activate_led_blink(int pin, int cycle_time, TaskHandle_t *task_handle)
     static BlinkParams params;
     params.pin = pin;
     params.cycle_time = cycle_time;
-    ESP_LOGI(TAG_LED, "Creating new blink task for pin %d with cycle time %d", pin, cycle_time);
+    ESP_LOGD(TAG_LED, "Creating new blink task for pin %d with cycle time %d", pin, cycle_time);
     xTaskCreate(blink_led_task, "Blink LED Task", 2048, (void *)&params, 10, task_handle);
 }
 
@@ -63,7 +64,6 @@ void remove_previous_led_task(int pin)
     }
 }
 
-//TODO: finish this function adding the STATUS and CONNECTION cases.
 void ping_led(int pin, int delay)
 {
     remove_previous_led_task(pin);
@@ -72,13 +72,16 @@ void ping_led(int pin, int delay)
     switch (pin)
     {
     case CONNECTION_TYPE:
-        get_current_network_module() == SIM_NETWORK_MODULE
+        int network_module = get_current_network_module();
+        network_module == SIM_NETWORK_MODULE
             ? set_led_state(SIM_LED)
-            : gpio_set_level(pin, 1);
+            : network_module == WIFI_MODULE ? set_led_state(WIFI_LED) : set_led_state;
         break;
     case STATUS:
+        get_current_energy_consumption_state()->state == NORMAL ? set_led_state(READY_LED) : set_led_state(BODIL_ON_CONTROL);
         break;
     case CONNECTION:
+        get_current_network_module() != DEACTIVATED ? set_led_state(CONNECTED_LED) : set_led_state(DISCONNECTED_LED);
         break;
     }
 }
@@ -91,13 +94,13 @@ void change_led_to_static_mode(int pin, int static_mode)
 
 void activate_static_led(int pin)
 {
-    ESP_LOGI(TAG_LED, "Activating static on LED for pin %d", pin);
+    ESP_LOGD(TAG_LED, "Activating static on LED for pin %d", pin);
     change_led_to_static_mode(pin, 1);
 }
 
 void deactivate_led(int pin)
 {
-    ESP_LOGI(TAG_LED, "Deactivating LED for pin %d", pin);
+    ESP_LOGD(TAG_LED, "Deactivating LED for pin %d", pin);
     change_led_to_static_mode(pin, 0);
 }
 
@@ -115,7 +118,7 @@ void led_manager_task(void *)
     {
         if (xQueueReceive(led_state_queue, &current_state, portMAX_DELAY))
         {
-            ESP_LOGI(TAG_LED, "Received new LED state: %d", current_state);
+            ESP_LOGD(TAG_LED, "Received new LED state: %d", current_state);
             switch (current_state)
             {
             case ALL_OFF_LED:
@@ -127,7 +130,7 @@ void led_manager_task(void *)
             case INIT_LED:
                 activate_led_blink(STATUS, 1000, &status_blink_task_handle);
                 break;
-            // static status
+            // deactivated status
             case READY_LED:
                 deactivate_led(STATUS);
                 break;
@@ -142,7 +145,6 @@ void led_manager_task(void *)
             // blink connection type and connection very fast
             case BLE_LED:
                 activate_led_blink(CONNECTION, 500, &connection_blink_task_handle);
-                vTaskDelay(100);
                 activate_led_blink(CONNECTION_TYPE, 500, &connection_type_blink_task_handle);
                 break;
             // blink connection slow
@@ -154,17 +156,21 @@ void led_manager_task(void *)
             case CONNECTED_LED:
                 activate_static_led(CONNECTION);
                 break;
+            case DISCONNECTED_LED:
+                deactivate_led(CONNECTION_TYPE);
+                deactivate_led(CONNECTION);
+                break;
             // blink all leds very slow
             case ERROR_LED:
                 activate_led_blink(STATUS, 4000, &status_blink_task_handle);
-                vTaskDelay(100);
                 activate_led_blink(CONNECTION_TYPE, 4000, &connection_type_blink_task_handle);
-                vTaskDelay(100);
                 activate_led_blink(CONNECTION, 4000, &connection_blink_task_handle);
                 break;
+            // ping led connection type
             case COMMAND_RECEIVED:
-                ping_led(CONNECTION_TYPE, 1000);
+                ping_led(CONNECTION, 1000);
                 break;
+
             case BODIL_ON_CONTROL:
                 activate_static_led(STATUS);
                 break;
