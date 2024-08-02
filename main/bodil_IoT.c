@@ -55,27 +55,23 @@ PeriodicRequestArgs *prepare_task_args(const char *service_url, const char *api_
 
 void app_main(void)
 {
+    esp_err_t ret;
     const char *TAG_MAIN = "Main Thread";
     const uint8_t check_conn_minutes_cycle = 1;
-
-    machine_control_init();
-    led_init();
-    set_led_state(INIT_LED);
 
     /*  _____________________________________________________
         --------------Initialization procedure:--------------
         ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾ */
-    ESP_LOGI(TAG_MAIN, "Startup...");
-    ESP_LOGI(TAG_MAIN, "Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
-    ESP_LOGI(TAG_MAIN, "IDF version: %s", esp_get_idf_version());
-    esp_log_level_set("*", ESP_LOG_INFO);
-    esp_log_level_set("uart_terminal", ESP_LOG_ERROR); //to supress RX Break warning!
 
-    esp_err_t ret;
+    ESP_LOGI(TAG_MAIN, "Startup...");
+    machine_control_init();
+    led_init();
+    set_led_state(INIT_LED);
 
     ESP_ERROR_CHECK(nvs_dotenv_load());
 
     enum ConnectionPreference conn_preference = get_connection_preference(getenv("CONNECTION_PREFERENCE"));
+    const char *firmware_version = getenv("FIRMWARE_VERSION");
     const char *api_header_name = getenv("API_HEADER_NAME");
     const char *api_key = getenv("API_KEY");
     const char *service_url = getenv("SERVICE_URL");
@@ -84,6 +80,12 @@ void app_main(void)
     const char *default_broker_mqtt_url = getenv("BROKER_MQTT_URL");
     const char *broker_username = getenv("BROKER_MQTT_USER");
     const char *broker_pass = getenv("BROKER_PASS");
+
+    ESP_LOGI(TAG_MAIN, "Firmware Version: %s", firmware_version);
+    ESP_LOGI(TAG_MAIN, "Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG_MAIN, "IDF version: %s", esp_get_idf_version());
+    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("uart_terminal", ESP_LOG_ERROR); //to supress RX Break warning!
 
     ret = nvs_flash_init(); // store the customer configs (non volatile) [struct config]
 
